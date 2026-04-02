@@ -5,14 +5,27 @@ import great_expectations as gx
 dataset_rules = {
     "diabetes_prediction": {
         "accuracy": {
-            "age": (0, 120),
+            "age": (0, 80),
             "bmi": (10.0, 100.0),
             "HbA1c_level": (3.5, 20.0),
             "blood_glucose_level": (40, 500),
         },
+        "unrealistic/outliers": {
+            # ranges acquired from teh ranges used by this study: https://pmc.ncbi.nlm.nih.gov/articles/PMC8578343/
+            # blood glucose and age are already inside realistic ranges
+            "bmi": (12, 70),
+            "HbA1c_level": (3.5, 15),
+        },
         "completeness": [
-            "gender", "age", "hypertension", "heart_disease",
-            "smoking_history", "bmi", "HbA1c_level", "blood_glucose_level", "diabetes"
+            "gender",
+            "age",
+            "hypertension",
+            "heart_disease",
+            "smoking_history",
+            "bmi",
+            "HbA1c_level",
+            "blood_glucose_level",
+            "diabetes",
         ],
         "categorical": {
             "gender": ["Female", "Male"],
@@ -28,11 +41,32 @@ dataset_rules = {
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
         },
+        "unrealistic/outliers": {
+            "BMI": (12, 70),
+        },
         "completeness": [
-            "Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI", "Smoker",
-            "Stroke", "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
-            "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth", "MentHlth",
-            "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"
+            "Diabetes_binary",
+            "HighBP",
+            "HighChol",
+            "CholCheck",
+            "BMI",
+            "Smoker",
+            "Stroke",
+            "HeartDiseaseorAttack",
+            "PhysActivity",
+            "Fruits",
+            "Veggies",
+            "HvyAlcoholConsump",
+            "AnyHealthcare",
+            "NoDocbcCost",
+            "GenHlth",
+            "MentHlth",
+            "PhysHlth",
+            "DiffWalk",
+            "Sex",
+            "Age",
+            "Education",
+            "Income",
         ],
         "categorical": {
             "Diabetes_binary": [0, 1],
@@ -62,11 +96,32 @@ dataset_rules = {
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
         },
+        "unrealistic/outliers": {
+            "BMI": (12, 70),
+        },
         "completeness": [
-            "Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI", "Smoker",
-            "Stroke", "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
-            "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth", "MentHlth",
-            "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"
+            "Diabetes_binary",
+            "HighBP",
+            "HighChol",
+            "CholCheck",
+            "BMI",
+            "Smoker",
+            "Stroke",
+            "HeartDiseaseorAttack",
+            "PhysActivity",
+            "Fruits",
+            "Veggies",
+            "HvyAlcoholConsump",
+            "AnyHealthcare",
+            "NoDocbcCost",
+            "GenHlth",
+            "MentHlth",
+            "PhysHlth",
+            "DiffWalk",
+            "Sex",
+            "Age",
+            "Education",
+            "Income",
         ],
         "categorical": {
             "Diabetes_binary": [0, 1],
@@ -85,11 +140,11 @@ dataset_rules = {
             "DiffWalk": [0, 1],
             "Sex": [0, 1],
             "GenHlth": [1, 2, 3, 4, 5],
-            "Age": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], 
+            "Age": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
             "Education": [1, 2, 3, 4, 5, 6],
             "Income": [1, 2, 3, 4, 5, 6, 7, 8],
         },
-    }
+    },
 }
 
 
@@ -97,14 +152,17 @@ dataset_rules = {
 # Validation function
 # ──────────────────────────────
 
+
+context = gx.get_context(mode="ephemeral")
+
+
 def run_validation(df: pd.DataFrame, dataset_name: str):
-    context = gx.get_context(mode="ephemeral")
-    
+
     data_source = context.data_sources.add_pandas(name=f"{dataset_name}_source")
     data_asset = data_source.add_dataframe_asset(name=f"{dataset_name}_asset")
     batch_def = data_asset.add_batch_definition_whole_dataframe("my_batch")
     batch = batch_def.get_batch(batch_parameters={"dataframe": df})
-    
+
     # Create Expectation Suite
     suite = context.suites.add(gx.ExpectationSuite(name=f"{dataset_name}_suite"))
     rules = dataset_rules.get(dataset_name, {})
@@ -117,11 +175,17 @@ def run_validation(df: pd.DataFrame, dataset_name: str):
             )
         )
 
-    # COMPLETENESS 
-    for col in rules.get("completeness", []):
+    # "UNREALISTIC/OUTLIERS (value ranged)"
+    for col, (min_val, max_val) in rules.get("unrealistic/outliers", {}).items():
         suite.add_expectation(
-            gx.expectations.ExpectColumnValuesToNotBeNull(column=col)
+            gx.expectations.ExpectColumnValuesToBeBetween(
+                column=col, min_value=min_val, max_value=max_val
+            )
         )
+
+    # COMPLETENESS
+    for col in rules.get("completeness", []):
+        suite.add_expectation(gx.expectations.ExpectColumnValuesToNotBeNull(column=col))
 
     # CATEGORICAL
     for col, allowed in rules.get("categorical", {}).items():
@@ -129,28 +193,26 @@ def run_validation(df: pd.DataFrame, dataset_name: str):
             gx.expectations.ExpectColumnValuesToBeInSet(column=col, value_set=allowed)
         )
 
-
     # Link batch to suite
     validation_def = context.validation_definitions.add(
-        gx.ValidationDefinition(name=f"{dataset_name}_validation", data=batch_def, suite=suite)
+        gx.ValidationDefinition(
+            name=f"{dataset_name}_validation", data=batch_def, suite=suite
+        )
     )
-
 
     results = validation_def.run(batch_parameters={"dataframe": df})
 
-
-    
-    context.build_data_docs()
-    context.open_data_docs()
+    # context.build_data_docs()
+    # context.open_data_docs()
     return results
 
 
 # ──────────────────────────────
 # Load DATA
 # ──────────────────────────────
-df_prediction = pd.read_csv('data/raw/diabetes_prediction_dataset.csv')
-df_brfss2015 = pd.read_csv('data/raw/diabetes_binary_health_indicators_BRFSS2015.csv')
-df_brfss2021 = pd.read_csv('data/raw/diabetes_binary_health_indicators_BRFSS2021.csv')
+df_prediction = pd.read_csv("data/raw/diabetes_prediction_dataset.csv")
+df_brfss2015 = pd.read_csv("data/raw/diabetes_binary_health_indicators_BRFSS2015.csv")
+df_brfss2021 = pd.read_csv("data/raw/diabetes_binary_health_indicators_BRFSS2021.csv")
 
 # ──────────────────────────────
 # RUN VALIDATION
@@ -158,3 +220,5 @@ df_brfss2021 = pd.read_csv('data/raw/diabetes_binary_health_indicators_BRFSS2021
 run_validation(df_prediction, "diabetes_prediction")
 run_validation(df_brfss2015, "diabetes_brfss2015")
 run_validation(df_brfss2021, "diabetes_brfss2021")
+context.build_data_docs()
+context.open_data_docs()
