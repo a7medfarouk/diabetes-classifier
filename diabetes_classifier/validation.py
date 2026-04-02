@@ -138,41 +138,11 @@ def run_validation(df: pd.DataFrame, dataset_name: str):
 
     results = validation_def.run(batch_parameters={"dataframe": df})
 
-    
-    _print_report(results)
+
     
     context.build_data_docs()
     context.open_data_docs()
     return results
-
-
-def _print_report(results):
-    """Print a summary of the validation results."""
-    success = results.success
-
-    print("=" * 58)
-    print("DATA VALIDATION REPORT  (Great Expectations v1.x)")
-    print("=" * 58)
-    print(f"Overall Result : {'PASSED' if success else 'FAILED'}")
-    print("=" * 58)
-
-    for exp_result in results.results:
-        exp_type = exp_result.expectation_config.type
-        col = exp_result.expectation_config.kwargs.get("column", "table-level")
-        passed = exp_result.success
-        status = "PASS" if passed else "FAIL"
-
-        print(f"\n[{status}] {exp_type}")
-        print(f"   Column : {col}")
-
-        if not passed and exp_result.result:
-            r = exp_result.result
-            if r.get("unexpected_count"):
-                print(f"   Issues : {r['unexpected_count']} unexpected values")
-            if r.get("partial_unexpected_list"):
-                print(f"   Sample : {r['partial_unexpected_list'][:3]}")
-
-    print("\n" + "=" * 58)
 
 
 # ──────────────────────────────
