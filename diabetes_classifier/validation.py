@@ -6,6 +6,9 @@ dataset_rules = {
     "diabetes_prediction": {
         "accuracy": {
             "age": (0, 120),
+            "bmi": (10.0, 100.0),
+            "HbA1c_level": (3.5, 20.0),
+            "blood_glucose_level": (40, 500),
         },
         "completeness": [
             "gender", "age", "hypertension", "heart_disease",
@@ -18,12 +21,12 @@ dataset_rules = {
             "heart_disease": [0, 1],
             "diabetes": [0, 1],
         },
-        "distribution": {
-        }
     },
     "diabetes_brfss2015": {
         "accuracy": {
-            "Age": (0, 120)
+            "BMI": (10.0, 100.0),
+            "MentHlth": (0, 30),
+            "PhysHlth": (0, 30),
         },
         "completeness": [
             "Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI", "Smoker",
@@ -32,18 +35,32 @@ dataset_rules = {
             "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"
         ],
         "categorical": {
-            "Sex": [0, 1],
-            "Smoker": [0, 1],
             "Diabetes_binary": [0, 1],
             "HighBP": [0, 1],
             "HighChol": [0, 1],
+            "CholCheck": [0, 1],
+            "Smoker": [0, 1],
+            "Stroke": [0, 1],
+            "HeartDiseaseorAttack": [0, 1],
+            "PhysActivity": [0, 1],
+            "Fruits": [0, 1],
+            "Veggies": [0, 1],
+            "HvyAlcoholConsump": [0, 1],
+            "AnyHealthcare": [0, 1],
+            "NoDocbcCost": [0, 1],
+            "DiffWalk": [0, 1],
+            "Sex": [0, 1],
+            "GenHlth": [1, 2, 3, 4, 5],
+            "Age": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
+            "Education": [1, 2, 3, 4, 5, 6],
+            "Income": [1, 2, 3, 4, 5, 6, 7, 8],
         },
-        "distribution": {
-        }
     },
     "diabetes_brfss2021": {
         "accuracy": {
-            "Age": (0, 120)
+            "BMI": (10.0, 100.0),
+            "MentHlth": (0, 30),
+            "PhysHlth": (0, 30),
         },
         "completeness": [
             "Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI", "Smoker",
@@ -52,13 +69,26 @@ dataset_rules = {
             "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"
         ],
         "categorical": {
-            "Sex": [0, 1],
-            "Smoker": [0, 1],
             "Diabetes_binary": [0, 1],
             "HighBP": [0, 1],
+            "HighChol": [0, 1],
+            "CholCheck": [0, 1],
+            "Smoker": [0, 1],
+            "Stroke": [0, 1],
+            "HeartDiseaseorAttack": [0, 1],
+            "PhysActivity": [0, 1],
+            "Fruits": [0, 1],
+            "Veggies": [0, 1],
+            "HvyAlcoholConsump": [0, 1],
+            "AnyHealthcare": [0, 1],
+            "NoDocbcCost": [0, 1],
+            "DiffWalk": [0, 1],
+            "Sex": [0, 1],
+            "GenHlth": [1, 2, 3, 4, 5],
+            "Age": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], 
+            "Education": [1, 2, 3, 4, 5, 6],
+            "Income": [1, 2, 3, 4, 5, 6, 7, 8],
         },
-        "distribution": {
-        }
     }
 }
 
@@ -99,11 +129,6 @@ def run_validation(df: pd.DataFrame, dataset_name: str):
             gx.expectations.ExpectColumnValuesToBeInSet(column=col, value_set=allowed)
         )
 
-    # DISTRIBUTION
-    for col, (min_val, max_val) in rules.get("distribution", {}).items():
-        suite.add_expectation(
-            gx.expectations.ExpectColumnMeanToBeBetween(column=col, min_value=min_val, max_value=max_val)
-        )
 
     # Link batch to suite
     validation_def = context.validation_definitions.add(
