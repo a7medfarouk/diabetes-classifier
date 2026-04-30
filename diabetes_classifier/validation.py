@@ -1,5 +1,6 @@
 import pandas as pd
 import great_expectations as gx
+from loguru import logger
 
 
 dataset_rules = {
@@ -85,31 +86,30 @@ dataset_rules = {
             "DiffWalk": [0, 1],
             "Sex": [0, 1],
             "GenHlth": [1, 2, 3, 4, 5],
-            "Age": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], 
+            "Age": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],
             "Education": [1, 2, 3, 4, 5, 6],
             "Income": [1, 2, 3, 4, 5, 6, 7, 8],
         },
-    }
+    },
+    "diabetes_brfss_merged": None 
 }
 
+dataset_rules["diabetes_brfss_merged"] = dataset_rules["diabetes_brfss2015"].copy()
+
 
 # ──────────────────────────────
-# Validation function
+# Validation
 # ──────────────────────────────
-
-def run_validation(df: pd.DataFrame, dataset_name: str):
+def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False):
     context = gx.get_context(mode="ephemeral")
-    
+
     data_source = context.data_sources.add_pandas(name=f"{dataset_name}_source")
-    data_asset = data_source.add_dataframe_asset(name=f"{dataset_name}_asset")
-    batch_def = data_asset.add_batch_definition_whole_dataframe("my_batch")
-    batch = batch_def.get_batch(batch_parameters={"dataframe": df})
-    
-    # Create Expectation Suite
+    data_asset  = data_source.add_dataframe_asset(name=f"{dataset_name}_asset")
+    batch_def   = data_asset.add_batch_definition_whole_dataframe("my_batch")
+
     suite = context.suites.add(gx.ExpectationSuite(name=f"{dataset_name}_suite"))
     rules = dataset_rules.get(dataset_name, {})
 
-    # ACCURACY (value ranges)
     for col, (min_val, max_val) in rules.get("accuracy", {}).items():
         suite.add_expectation(
             gx.expectations.ExpectColumnValuesToBeBetween(
@@ -117,44 +117,37 @@ def run_validation(df: pd.DataFrame, dataset_name: str):
             )
         )
 
-    # COMPLETENESS 
     for col in rules.get("completeness", []):
         suite.add_expectation(
             gx.expectations.ExpectColumnValuesToNotBeNull(column=col)
         )
 
-    # CATEGORICAL
     for col, allowed in rules.get("categorical", {}).items():
         suite.add_expectation(
             gx.expectations.ExpectColumnValuesToBeInSet(column=col, value_set=allowed)
         )
 
-
-    # Link batch to suite
     validation_def = context.validation_definitions.add(
         gx.ValidationDefinition(name=f"{dataset_name}_validation", data=batch_def, suite=suite)
     )
 
-
     results = validation_def.run(batch_parameters={"dataframe": df})
 
+    if results.success:
+        logger.success(f"Validation passed for {dataset_name}.")
+    else:
+        logger.warning(f"Validation failed for {dataset_name}, check data docs.")
 
-    
     context.build_data_docs()
-    context.open_data_docs()
+    if open_docs:
+        context.open_data_docs()
+
     return results
 
 
 # ──────────────────────────────
-# Load DATA
+# Merge check
 # ──────────────────────────────
-df_prediction = pd.read_csv('data/raw/diabetes_prediction_dataset.csv')
-df_brfss2015 = pd.read_csv('data/raw/diabetes_binary_health_indicators_BRFSS2015.csv')
-df_brfss2021 = pd.read_csv('data/raw/diabetes_binary_health_indicators_BRFSS2021.csv')
-
-# ──────────────────────────────
-# RUN VALIDATION
-# ──────────────────────────────
-run_validation(df_prediction, "diabetes_prediction")
-run_validation(df_brfss2015, "diabetes_brfss2015")
-run_validation(df_brfss2021, "diabetes_brfss2021")
+def validate_merge_counts(df1: pd.DataFrame, df2: pd.DataFrame, merged: pd.DataFrame):
+    assert len(merged) == len(df1) + len(df2), "Row count mismatch after merge"
+    logger.success(f"Merge validated: {len(df1)} + {len(df2)} = {len(merged)} rows")
