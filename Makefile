@@ -15,7 +15,8 @@ PYTHON_INTERPRETER = python
 .PHONY: requirements
 requirements:
 	poetry install
-	
+	pip install nbstripout
+	nbstripout --install
 
 
 

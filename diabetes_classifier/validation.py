@@ -11,22 +11,16 @@ dataset_rules = {
             "HbA1c_level": (3.5, 20.0),
             "blood_glucose_level": (40, 500),
         },
-        "unrealistic/outliers": {
-            # ranges acquired from teh ranges used by this study: https://pmc.ncbi.nlm.nih.gov/articles/PMC8578343/
-            # blood glucose and age are already inside realistic ranges
-            "bmi": (12, 70),
-            "HbA1c_level": (3.5, 15),
-        },
         "completeness": [
-            "gender",
-            "age",
-            "hypertension",
+            "gender", 
+            "age", 
+            "hypertension", 
             "heart_disease",
-            "smoking_history",
-            "bmi",
-            "HbA1c_level",
-            "blood_glucose_level",
-            "diabetes",
+            "smoking_history", 
+            "bmi", 
+            "HbA1c_level", 
+            "blood_glucose_level", 
+            "diabetes"
         ],
         "categorical": {
             "gender": ["Female", "Male"],
@@ -42,32 +36,29 @@ dataset_rules = {
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
         },
-        "unrealistic/outliers": {
-            "BMI": (12, 70),
-        },
         "completeness": [
-            "Diabetes_binary",
-            "HighBP",
-            "HighChol",
-            "CholCheck",
-            "BMI",
+            "Diabetes_binary", 
+            "HighBP", 
+            "HighChol", 
+            "CholCheck", 
+            "BMI", 
             "Smoker",
-            "Stroke",
-            "HeartDiseaseorAttack",
-            "PhysActivity",
-            "Fruits",
+            "Stroke", 
+            "HeartDiseaseorAttack", 
+            "PhysActivity", 
+            "Fruits", 
             "Veggies",
-            "HvyAlcoholConsump",
-            "AnyHealthcare",
-            "NoDocbcCost",
-            "GenHlth",
+            "HvyAlcoholConsump", 
+            "AnyHealthcare", 
+            "NoDocbcCost", 
+            "GenHlth", 
             "MentHlth",
-            "PhysHlth",
-            "DiffWalk",
-            "Sex",
-            "Age",
-            "Education",
-            "Income",
+            "PhysHlth", 
+            "DiffWalk", 
+            "Sex", 
+            "Age", 
+            "Education", 
+            "Income"
         ],
         "categorical": {
             "Diabetes_binary": [0, 1],
@@ -97,32 +88,29 @@ dataset_rules = {
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
         },
-        "unrealistic/outliers": {
-            "BMI": (12, 70),
-        },
         "completeness": [
-            "Diabetes_binary",
-            "HighBP",
-            "HighChol",
-            "CholCheck",
-            "BMI",
+            "Diabetes_binary", 
+            "HighBP", 
+            "HighChol", 
+            "CholCheck", 
+            "BMI", 
             "Smoker",
-            "Stroke",
-            "HeartDiseaseorAttack",
-            "PhysActivity",
-            "Fruits",
+            "Stroke", 
+            "HeartDiseaseorAttack", 
+            "PhysActivity", 
+            "Fruits", 
             "Veggies",
-            "HvyAlcoholConsump",
-            "AnyHealthcare",
-            "NoDocbcCost",
-            "GenHlth",
+            "HvyAlcoholConsump", 
+            "AnyHealthcare", 
+            "NoDocbcCost", 
+            "GenHlth", 
             "MentHlth",
-            "PhysHlth",
-            "DiffWalk",
-            "Sex",
-            "Age",
-            "Education",
-            "Income",
+            "PhysHlth", 
+            "DiffWalk", 
+            "Sex", 
+            "Age", 
+            "Education", 
+            "Income"
         ],
         "categorical": {
             "Diabetes_binary": [0, 1],
@@ -146,7 +134,7 @@ dataset_rules = {
             "Income": [1, 2, 3, 4, 5, 6, 7, 8],
         },
     },
-    "diabetes_brfss_merged": None 
+    "diabetes_brfss_merged": None
 }
 
 dataset_rules["diabetes_brfss_merged"] = dataset_rules["diabetes_brfss2015"].copy()
@@ -155,8 +143,8 @@ dataset_rules["diabetes_brfss_merged"] = dataset_rules["diabetes_brfss2015"].cop
 # ──────────────────────────────
 # Validation
 # ──────────────────────────────
+context = gx.get_context(mode="ephemeral")
 def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False):
-    context = gx.get_context(mode="ephemeral")
 
     data_source = context.data_sources.add_pandas(name=f"{dataset_name}_source")
     data_asset  = data_source.add_dataframe_asset(name=f"{dataset_name}_asset")
@@ -174,9 +162,7 @@ def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False)
 
     for col in rules.get("completeness", []):
         suite.add_expectation(
-            gx.expectations.ExpectColumnValuesToBeBetween(
-                column=col, min_value=min_val, max_value=max_val
-            )
+            gx.expectations.ExpectColumnValuesToNotBeNull(column=col)
         )
 
     for col, allowed in rules.get("categorical", {}).items():
@@ -205,8 +191,12 @@ def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False)
 
 
 # ──────────────────────────────
-# Merge check
+# Merge checks
 # ──────────────────────────────
 def validate_merge_counts(df1: pd.DataFrame, df2: pd.DataFrame, merged: pd.DataFrame):
     assert len(merged) == len(df1) + len(df2), "Row count mismatch after merge"
     logger.success(f"Merge validated: {len(df1)} + {len(df2)} = {len(merged)} rows")
+    
+def validate_merge_columns(df1: pd.DataFrame, df2: pd.DataFrame):
+    assert set(df1.columns) == set(df2.columns), f"Column mismatch: {set(df1.columns) - set(df2.columns)} vs {set(df2.columns) - set(df1.columns)}"
+    logger.success(f"Merge validated: Columns match between datasets")

@@ -6,6 +6,21 @@
 
 A short description of the project.
 
+### 1. Clone the Repository
+First, clone the repo to your local machine:
+```bash
+git clone https://github.com/a7medfarouk/diabetes-classifier.git
+cd diabetes-classifier
+```
+
+### 2. Install Dependencies
+make sure you have `make` installed, then run the following command to set up your environment:
+
+```bash
+make requirements
+```
+
+
 ## Project Organization
 
 ```
