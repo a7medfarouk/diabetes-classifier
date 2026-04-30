@@ -6,14 +6,27 @@ from loguru import logger
 dataset_rules = {
     "diabetes_prediction": {
         "accuracy": {
-            "age": (0, 120),
+            "age": (0, 80),
             "bmi": (10.0, 100.0),
             "HbA1c_level": (3.5, 20.0),
             "blood_glucose_level": (40, 500),
         },
+        "unrealistic/outliers": {
+            # ranges acquired from teh ranges used by this study: https://pmc.ncbi.nlm.nih.gov/articles/PMC8578343/
+            # blood glucose and age are already inside realistic ranges
+            "bmi": (12, 70),
+            "HbA1c_level": (3.5, 15),
+        },
         "completeness": [
-            "gender", "age", "hypertension", "heart_disease",
-            "smoking_history", "bmi", "HbA1c_level", "blood_glucose_level", "diabetes"
+            "gender",
+            "age",
+            "hypertension",
+            "heart_disease",
+            "smoking_history",
+            "bmi",
+            "HbA1c_level",
+            "blood_glucose_level",
+            "diabetes",
         ],
         "categorical": {
             "gender": ["Female", "Male"],
@@ -29,11 +42,32 @@ dataset_rules = {
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
         },
+        "unrealistic/outliers": {
+            "BMI": (12, 70),
+        },
         "completeness": [
-            "Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI", "Smoker",
-            "Stroke", "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
-            "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth", "MentHlth",
-            "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"
+            "Diabetes_binary",
+            "HighBP",
+            "HighChol",
+            "CholCheck",
+            "BMI",
+            "Smoker",
+            "Stroke",
+            "HeartDiseaseorAttack",
+            "PhysActivity",
+            "Fruits",
+            "Veggies",
+            "HvyAlcoholConsump",
+            "AnyHealthcare",
+            "NoDocbcCost",
+            "GenHlth",
+            "MentHlth",
+            "PhysHlth",
+            "DiffWalk",
+            "Sex",
+            "Age",
+            "Education",
+            "Income",
         ],
         "categorical": {
             "Diabetes_binary": [0, 1],
@@ -63,11 +97,32 @@ dataset_rules = {
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
         },
+        "unrealistic/outliers": {
+            "BMI": (12, 70),
+        },
         "completeness": [
-            "Diabetes_binary", "HighBP", "HighChol", "CholCheck", "BMI", "Smoker",
-            "Stroke", "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
-            "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth", "MentHlth",
-            "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"
+            "Diabetes_binary",
+            "HighBP",
+            "HighChol",
+            "CholCheck",
+            "BMI",
+            "Smoker",
+            "Stroke",
+            "HeartDiseaseorAttack",
+            "PhysActivity",
+            "Fruits",
+            "Veggies",
+            "HvyAlcoholConsump",
+            "AnyHealthcare",
+            "NoDocbcCost",
+            "GenHlth",
+            "MentHlth",
+            "PhysHlth",
+            "DiffWalk",
+            "Sex",
+            "Age",
+            "Education",
+            "Income",
         ],
         "categorical": {
             "Diabetes_binary": [0, 1],
@@ -119,7 +174,9 @@ def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False)
 
     for col in rules.get("completeness", []):
         suite.add_expectation(
-            gx.expectations.ExpectColumnValuesToNotBeNull(column=col)
+            gx.expectations.ExpectColumnValuesToBeBetween(
+                column=col, min_value=min_val, max_value=max_val
+            )
         )
 
     for col, allowed in rules.get("categorical", {}).items():
@@ -128,7 +185,9 @@ def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False)
         )
 
     validation_def = context.validation_definitions.add(
-        gx.ValidationDefinition(name=f"{dataset_name}_validation", data=batch_def, suite=suite)
+        gx.ValidationDefinition(
+            name=f"{dataset_name}_validation", data=batch_def, suite=suite
+        )
     )
 
     results = validation_def.run(batch_parameters={"dataframe": df})
