@@ -11,6 +11,12 @@ dataset_rules = {
             "HbA1c_level": (3.5, 20.0),
             "blood_glucose_level": (40, 500),
         },
+        "unrealistic": {
+            # ranges acquired from teh ranges used by this study: https://pmc.ncbi.nlm.nih.gov/articles/PMC8578343/
+            # blood glucose and age are already inside realistic ranges
+            "bmi": (12, 70),
+            "HbA1c_level": (3.5, 15),
+        },
         "completeness": [
             "gender", 
             "age", 
@@ -35,6 +41,9 @@ dataset_rules = {
             "BMI": (10.0, 100.0),
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
+        },
+        "unrealistic": {
+            "BMI": (12, 70),
         },
         "completeness": [
             "Diabetes_binary", 
@@ -87,6 +96,9 @@ dataset_rules = {
             "BMI": (10.0, 100.0),
             "MentHlth": (0, 30),
             "PhysHlth": (0, 30),
+        },
+        "unrealistic": {
+            "BMI": (12, 70),
         },
         "completeness": [
             "Diabetes_binary", 
@@ -143,8 +155,7 @@ dataset_rules["diabetes_brfss_merged"] = dataset_rules["diabetes_brfss2015"].cop
 # ──────────────────────────────
 # Validation
 # ──────────────────────────────
-context = gx.get_context(mode="ephemeral")
-def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False):
+def run_validation(df: pd.DataFrame, dataset_name: str, context):
 
     data_source = context.data_sources.add_pandas(name=f"{dataset_name}_source")
     data_asset  = data_source.add_dataframe_asset(name=f"{dataset_name}_asset")
@@ -154,6 +165,13 @@ def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False)
     rules = dataset_rules.get(dataset_name, {})
 
     for col, (min_val, max_val) in rules.get("accuracy", {}).items():
+        suite.add_expectation(
+            gx.expectations.ExpectColumnValuesToBeBetween(
+                column=col, min_value=min_val, max_value=max_val
+            )
+        )
+    
+    for col, (min_val, max_val) in rules.get("unrealistic", {}).items():
         suite.add_expectation(
             gx.expectations.ExpectColumnValuesToBeBetween(
                 column=col, min_value=min_val, max_value=max_val
@@ -183,12 +201,17 @@ def run_validation(df: pd.DataFrame, dataset_name: str, open_docs: bool = False)
     else:
         logger.warning(f"Validation failed for {dataset_name}, check data docs.")
 
+    return results
+
+def run_all_validations(datasets: dict, open_docs: bool = False):
+    context = gx.get_context(mode="ephemeral")
+    results = {}
+    for dataset_name, df in datasets.items():
+        results[dataset_name] = run_validation(df, dataset_name, context)
     context.build_data_docs()
     if open_docs:
         context.open_data_docs()
-
     return results
-
 
 # ──────────────────────────────
 # Merge checks

@@ -6,6 +6,7 @@ import typer
 
 from diabetes_classifier.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
 from diabetes_classifier.validation import validate_merge_counts, validate_merge_columns
+from diabetes_classifier.features import clean_brfss, clean_prediction
 
 app = typer.Typer()
 
@@ -60,10 +61,16 @@ def main(output_path: Path = PROCESSED_DATA_DIR):
     
     # validate schema before merge
     validate_merge_columns(df_brfss2015, df_brfss2021)
+    
 
     # Merge
     df_brfss_merged = merge_brfss_datasets(df_brfss2015, df_brfss2021)
-
+    
+    
+    # apply universal data cleaning by removing invalid values or categories and clipping unrealistic values.
+    df_prediction = clean_prediction(df_prediction)
+    df_brfss_merged = clean_brfss(df_brfss_merged)
+    
 
     # Split
     logger.info("Splitting datasets...")
