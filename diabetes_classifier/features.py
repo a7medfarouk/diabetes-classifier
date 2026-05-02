@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from loguru import logger
-from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTE, SMOTENC
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
 import typer
 
@@ -238,9 +238,10 @@ def feature_interactions_prediction(
 # ──────────────────────────────
 def balance(
     X_train: pd.DataFrame,
-    y_train: pd.Series
+    y_train: pd.Series,
+    categorical_features: list
 ) -> tuple[pd.DataFrame, pd.Series]:
-    smote = SMOTE(random_state=42)
+    smote = SMOTENC(categorical_features=categorical_features, random_state=42)
     X_balanced, y_balanced = smote.fit_resample(X_train, y_train)
     logger.info(f"SMOTE applied. Train size: {len(X_train)} → {len(X_balanced)}")
     return X_balanced, y_balanced
@@ -277,10 +278,19 @@ def main(output_path: Path = PROCESSED_DATA_DIR):
     y_train_brfss      = train_brfss["Diabetes_binary"]
     X_train_prediction = train_prediction.drop(columns=["diabetes"])
     y_train_prediction = train_prediction["diabetes"]
+    
+    
+    # Get Categorical Features To feed to SMOTENC
+    pred_num_cols = ["age", "bmi", "HbA1c_level", "blood_glucose_level"]
+    pred_cat_indices = [i for i, col in enumerate(X_train_prediction.columns) 
+                        if col not in pred_num_cols]
+
+    brfss_cat_indices = [i for i, col in enumerate(X_train_brfss.columns) 
+                        if col != "BMI"]
 
     # 7. Balance train only
-    X_train_brfss,      y_train_brfss      = balance(X_train_brfss,      y_train_brfss)
-    X_train_prediction, y_train_prediction = balance(X_train_prediction, y_train_prediction)
+    X_train_brfss,      y_train_brfss      = balance(X_train_brfss,      y_train_brfss, brfss_cat_indices)
+    X_train_prediction, y_train_prediction = balance(X_train_prediction, y_train_prediction, pred_cat_indices)
 
     # 8. Save
     logger.info(f"Saving featured datasets to {output_path}...")
