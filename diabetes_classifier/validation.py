@@ -30,7 +30,7 @@ dataset_rules = {
         ],
         "categorical": {
             "gender": ["Female", "Male"],
-            "smoking_history": ["never", "No Info", "current", "former", "not current"],
+            "smoking_history": ["never", "No Info", "current", "former"],
             "hypertension": [0, 1],
             "heart_disease": [0, 1],
             "diabetes": [0, 1],

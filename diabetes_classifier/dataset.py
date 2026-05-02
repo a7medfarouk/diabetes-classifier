@@ -13,6 +13,7 @@ app = typer.Typer()
 # ──────────────────────────────
 # Load
 # ──────────────────────────────
+
 def load_datasets() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     logger.info("Loading datasets...")
     df_prediction = pd.read_csv(RAW_DATA_DIR / "diabetes_prediction_dataset.csv")
