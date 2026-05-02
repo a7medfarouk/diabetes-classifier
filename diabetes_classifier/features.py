@@ -7,7 +7,7 @@ from imblearn.over_sampling import SMOTE
 from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
 import typer
 
-from diabetes_classifier.config import PROCESSED_DATA_DIR
+from diabetes_classifier.config import INTERIM_DATA_DIR, PROCESSED_DATA_DIR
 
 app = typer.Typer()
 
@@ -17,22 +17,22 @@ app = typer.Typer()
 
 def load_training_sets() -> tuple[pd.DataFrame, pd.DataFrame]:
     logger.info("Loading Training sets...")
-    df_train_prediction = pd.read_csv(PROCESSED_DATA_DIR / "train_prediction_dataset.csv")
-    df_train_brfss = pd.read_csv(PROCESSED_DATA_DIR / "train_brfss_dataset.csv")
+    df_train_prediction = pd.read_csv(INTERIM_DATA_DIR / "train_prediction_dataset.csv")
+    df_train_brfss = pd.read_csv(INTERIM_DATA_DIR / "train_brfss_dataset.csv")
     logger.success("Training sets loaded successfully.")
     return df_train_prediction, df_train_brfss
 
 def load_validation_sets() -> tuple[pd.DataFrame, pd.DataFrame]:
     logger.info("Loading Validation sets...")
-    df_validation_prediction = pd.read_csv(PROCESSED_DATA_DIR / "validation_prediction_dataset.csv")
-    df_validation_brfss = pd.read_csv(PROCESSED_DATA_DIR / "validation_brfss_dataset.csv")
+    df_validation_prediction = pd.read_csv(INTERIM_DATA_DIR / "validation_prediction_dataset.csv")
+    df_validation_brfss = pd.read_csv(INTERIM_DATA_DIR / "validation_brfss_dataset.csv")
     logger.success("Validation sets loaded successfully.")
     return df_validation_prediction, df_validation_brfss
 
 def load_test_sets() -> tuple[pd.DataFrame, pd.DataFrame]:
     logger.info("Loading Test sets...")
-    df_test_prediction = pd.read_csv(PROCESSED_DATA_DIR / "test_prediction_dataset.csv")
-    df_test_brfss = pd.read_csv(PROCESSED_DATA_DIR / "test_brfss_dataset.csv")
+    df_test_prediction = pd.read_csv(INTERIM_DATA_DIR / "test_prediction_dataset.csv")
+    df_test_brfss = pd.read_csv(INTERIM_DATA_DIR / "test_brfss_dataset.csv")
     logger.success("Test sets loaded successfully.")
     return df_test_prediction, df_test_brfss
 

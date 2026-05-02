@@ -4,7 +4,7 @@ from loguru import logger
 from sklearn.model_selection import train_test_split
 import typer
 
-from diabetes_classifier.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
+from diabetes_classifier.config import INTERIM_DATA_DIR, RAW_DATA_DIR
 from diabetes_classifier.validation import validate_merge_counts, validate_merge_columns
 from diabetes_classifier.features import clean_brfss, clean_prediction
 
@@ -55,7 +55,7 @@ def split_data(
 # Main
 # ──────────────────────────────
 @app.command()
-def main(output_path: Path = PROCESSED_DATA_DIR):
+def main(output_path: Path = INTERIM_DATA_DIR):
 
     # Load
     df_prediction, df_brfss2015, df_brfss2021 = load_datasets()
