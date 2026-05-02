@@ -34,6 +34,7 @@ dependencies = [
     "typer",
     "seaborn (>=0.13.2,<0.14.0)",
     "great-expectations (>=1.15.1,<2.0.0)",
+    "imbalanced-learn (>=0.14.1,<0.15.0)",
 ]
 requires-python = "~=3.10.0"
 

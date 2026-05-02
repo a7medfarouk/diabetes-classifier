@@ -1,9 +1,11 @@
 from pathlib import Path
 
-from loguru import logger
-from tqdm import tqdm
-import typer
+import numpy as np
 import pandas as pd
+from loguru import logger
+from imblearn.over_sampling import SMOTE
+from sklearn.preprocessing import StandardScaler, RobustScaler, MinMaxScaler
+import typer
 
 from diabetes_classifier.config import PROCESSED_DATA_DIR
 
@@ -84,16 +86,216 @@ def clean_prediction(df: pd.DataFrame) -> pd.DataFrame:
 # ──────────────────────────────
 # Advanced Cleaning (Post-Split)
 # ──────────────────────────────
+# ──────────────────────────────
+# Scaling
+# ──────────────────────────────
+def scale_prediction(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
+    train, val, test = train.copy(), val.copy(), test.copy()
+
+    # RobustScaler for HbA1c_level and blood_glucose_level
+    robust_cols   = ["HbA1c_level", "blood_glucose_level"]
+    robust_scaler = RobustScaler()
+    train[robust_cols] = robust_scaler.fit_transform(train[robust_cols])
+    val[robust_cols]   = robust_scaler.transform(val[robust_cols])
+    test[robust_cols]  = robust_scaler.transform(test[robust_cols])
+
+    # MinMaxScaler for age
+    mm_scaler    = MinMaxScaler()
+    train[["age"]] = mm_scaler.fit_transform(train[["age"]])
+    val[["age"]]   = mm_scaler.transform(val[["age"]])
+    test[["age"]]  = mm_scaler.transform(test[["age"]])
+
+    # Log Transform + StandardScaler for bmi
+    for df in [train, val, test]:
+        df["bmi"] = np.log1p(df["bmi"])
+    bmi_scaler     = StandardScaler()
+    train[["bmi"]] = bmi_scaler.fit_transform(train[["bmi"]])
+    val[["bmi"]]   = bmi_scaler.transform(val[["bmi"]])
+    test[["bmi"]]  = bmi_scaler.transform(test[["bmi"]])
+
+    scalers = {"robust": robust_scaler, "minmax": mm_scaler, "bmi": bmi_scaler}
+    logger.info("Scaling applied to prediction dataset.")
+    return train, val, test, scalers
 
 
+def scale_brfss(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
+    train, val, test = train.copy(), val.copy(), test.copy()
+
+    # Log Transform + StandardScaler for BMI
+    for df in [train, val, test]:
+        df["BMI"] = np.log1p(df["BMI"])
+    bmi_scaler      = StandardScaler()
+    train[["BMI"]]  = bmi_scaler.fit_transform(train[["BMI"]])
+    val[["BMI"]]    = bmi_scaler.transform(val[["BMI"]])
+    test[["BMI"]]   = bmi_scaler.transform(test[["BMI"]])
+
+    scalers = {"bmi": bmi_scaler}
+    logger.info("Scaling applied to BRFSS dataset.")
+    return train, val, test, scalers
+
+
+# ──────────────────────────────
+# Discretization
+# ──────────────────────────────
+def discretize_brfss(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    train, val, test = train.copy(), val.copy(), test.copy()
+
+    bins   = [-1, 0, 13, 30]
+    labels = ["Zero", "Moderate", "Severe"]
+
+    for df in [train, val, test]:
+        df["MentHlth_binned"] = pd.cut(df["MentHlth"], bins=bins, labels=labels)
+        df["PhysHlth_binned"] = pd.cut(df["PhysHlth"], bins=bins, labels=labels)
+        df.drop(columns=["MentHlth", "PhysHlth"], inplace=True)
+
+    logger.info("Discretization applied to BRFSS dataset.")
+    return train, val, test
+
+
+# ──────────────────────────────
+# Encoding
+# ──────────────────────────────
+def encode_brfss(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    train = pd.get_dummies(train, columns=["MentHlth_binned", "PhysHlth_binned"], drop_first=True, dtype=int)
+    
+    # align val and test to train columns
+    val  = pd.get_dummies(val,  columns=["MentHlth_binned", "PhysHlth_binned"], drop_first=True, dtype=int)
+    test = pd.get_dummies(test, columns=["MentHlth_binned", "PhysHlth_binned"], drop_first=True, dtype=int)
+    val,  _ = val.align(train,  join="right", axis=1, fill_value=0)
+    test, _ = test.align(train, join="right", axis=1, fill_value=0)
+
+    logger.info("Encoding applied to BRFSS dataset.")
+    return train, val, test
+
+
+def encode_prediction(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    train = pd.get_dummies(train, columns=["gender", "smoking_history"], drop_first=True, dtype=int)
+
+    # align val and test to train columns
+    val  = pd.get_dummies(val,  columns=["gender", "smoking_history"], drop_first=True, dtype=int)
+    test = pd.get_dummies(test, columns=["gender", "smoking_history"], drop_first=True, dtype=int)
+    val,  _ = val.align(train,  join="right", axis=1, fill_value=0)
+    test, _ = test.align(train, join="right", axis=1, fill_value=0)
+
+    logger.info("Encoding applied to prediction dataset.")
+    return train, val, test
+
+
+# ──────────────────────────────
+# Feature Interactions
+# ──────────────────────────────
+def feature_interactions_brfss(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    for df in [train, val, test]:
+        df["Cardio_Comorbidity_Score"] = df["HighBP"] + df["HighChol"] + df["Stroke"] + df["HeartDiseaseorAttack"]
+        df.drop(columns=["HighBP", "HighChol", "Stroke", "HeartDiseaseorAttack"], inplace=True)
+
+        df["Lifestyle_Score"] = df["PhysActivity"] + df["Fruits"] + df["Veggies"]
+        df.drop(columns=["PhysActivity", "Fruits", "Veggies"], inplace=True)
+
+    logger.info("Feature interactions applied to BRFSS dataset.")
+    return train, val, test
+
+
+def feature_interactions_prediction(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    test: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    for df in [train, val, test]:
+        df["Cardio_Risk_Score"] = df["hypertension"] + df["heart_disease"]
+        df.drop(columns=["hypertension", "heart_disease"], inplace=True)
+
+    logger.info("Feature interactions applied to prediction dataset.")
+    return train, val, test
+
+
+# ──────────────────────────────
+# Balancing (SMOTE — train only)
+# ──────────────────────────────
+def balance(
+    X_train: pd.DataFrame,
+    y_train: pd.Series
+) -> tuple[pd.DataFrame, pd.Series]:
+    smote = SMOTE(random_state=42)
+    X_balanced, y_balanced = smote.fit_resample(X_train, y_train)
+    logger.info(f"SMOTE applied. Train size: {len(X_train)} → {len(X_balanced)}")
+    return X_balanced, y_balanced
+
+
+# ──────────────────────────────
+# Main
+# ──────────────────────────────
 @app.command()
-def main(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path = PROCESSED_DATA_DIR / "dataset.csv",
-    output_path: Path = PROCESSED_DATA_DIR / "features.csv",
-    # -----------------------------------------
-):
-    return
+def main(output_path: Path = PROCESSED_DATA_DIR):
+
+    # 1. Load
+    train_prediction, train_brfss = load_training_sets()
+    val_prediction,   val_brfss   = load_validation_sets()
+    test_prediction,  test_brfss  = load_test_sets()
+
+    # 2. Scale
+    train_prediction, val_prediction, test_prediction, _ = scale_prediction(train_prediction, val_prediction, test_prediction)
+    train_brfss,      val_brfss,      test_brfss,      _ = scale_brfss(train_brfss, val_brfss, test_brfss)
+
+    # 3. Discretize
+    train_brfss, val_brfss, test_brfss = discretize_brfss(train_brfss, val_brfss, test_brfss)
+
+    # 4. Encode
+    train_brfss,      val_brfss,      test_brfss      = encode_brfss(train_brfss, val_brfss, test_brfss)
+    train_prediction, val_prediction, test_prediction = encode_prediction(train_prediction, val_prediction, test_prediction)
+
+    # 5. Feature Interactions
+    train_brfss,      val_brfss,      test_brfss      = feature_interactions_brfss(train_brfss, val_brfss, test_brfss)
+    train_prediction, val_prediction, test_prediction = feature_interactions_prediction(train_prediction, val_prediction, test_prediction)
+
+    # 6. Separate features and target
+    X_train_brfss      = train_brfss.drop(columns=["Diabetes_binary"])
+    y_train_brfss      = train_brfss["Diabetes_binary"]
+    X_train_prediction = train_prediction.drop(columns=["diabetes"])
+    y_train_prediction = train_prediction["diabetes"]
+
+    # 7. Balance train only
+    X_train_brfss,      y_train_brfss      = balance(X_train_brfss,      y_train_brfss)
+    X_train_prediction, y_train_prediction = balance(X_train_prediction, y_train_prediction)
+
+    # 8. Save
+    logger.info(f"Saving featured datasets to {output_path}...")
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    pd.concat([X_train_brfss, y_train_brfss], axis=1).to_csv(output_path / "featured_train_brfss.csv", index=False)
+    val_brfss.to_csv(output_path  / "featured_val_brfss.csv",  index=False)
+    test_brfss.to_csv(output_path / "featured_test_brfss.csv", index=False)
+
+    pd.concat([X_train_prediction, y_train_prediction], axis=1).to_csv(output_path / "featured_train_prediction.csv", index=False)
+    val_prediction.to_csv(output_path  / "featured_val_prediction.csv",  index=False)
+    test_prediction.to_csv(output_path / "featured_test_prediction.csv", index=False)
+
+    logger.success("Feature engineering complete.")
+
 
 if __name__ == "__main__":
     app()
