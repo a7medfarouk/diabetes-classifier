@@ -234,7 +234,7 @@ def feature_interactions_prediction(
 
 
 # ──────────────────────────────
-# Balancing (SMOTE — train only)
+# Balancing (SMOTENC — train only)
 # ──────────────────────────────
 def balance(
     X_train: pd.DataFrame,
