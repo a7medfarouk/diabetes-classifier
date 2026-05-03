@@ -66,6 +66,8 @@ def main(output_path: Path = INTERIM_DATA_DIR):
 
     # Merge
     df_brfss_merged = merge_brfss_datasets(df_brfss2015, df_brfss2021)
+    df_brfss_merged.to_csv(RAW_DATA_DIR / "diabetes_binary_health_indicators_BRFSS_merged.csv", index = False)
+    logger.info(f"BRFSS Merged: {df_brfss_merged.shape}")
     
     
     # apply universal data cleaning by removing invalid values or categories and clipping unrealistic values.
