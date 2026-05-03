@@ -2002,21 +2002,6 @@ files = [
 arrow = ">=0.15.0"
 
 [[package]]
-name = "isort"
-version = "8.0.1"
-description = "A Python utility / library to sort Python imports."
-optional = false
-python-versions = ">=3.10.0"
-groups = ["main"]
-files = [
-    {file = "isort-8.0.1-py3-none-any.whl", hash = "sha256:28b89bc70f751b559aeca209e6120393d43fbe2490de0559662be7a9787e3d75"},
-    {file = "isort-8.0.1.tar.gz", hash = "sha256:171ac4ff559cdc060bcfff550bc8404a486fee0caab245679c2abe7cb253c78d"},
-]
-
-[package.extras]
-colors = ["colorama"]
-
-[[package]]
 name = "itsdangerous"
 version = "2.2.0"
 description = "Safely pass data to untrusted environments and back."
@@ -6193,4 +6178,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "~=3.10.0"
-content-hash = "8311133aa0d13e28882ad2660218ed4e40c5f2043d2e8507e8ba644deceee13e"
+content-hash = "bcc6d0ff2f19561ff55b573b112d7f3afff3cc2a0afd0abbda030bd9a6f7cf60"

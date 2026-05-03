@@ -18,7 +18,6 @@ classifiers = [
 dependencies = [
     "flake8",
     "ipython",
-    "isort",
     "jupyterlab",
     "loguru",
     "matplotlib",
