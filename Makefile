@@ -31,7 +31,7 @@ clean:
 .PHONY: lint
 lint:
 	flake8 diabetes_classifier
-	ruff check diabetes_classifier
+	ruff check --fix diabetes_classifier
 
 ## Format source code with black
 .PHONY: format
