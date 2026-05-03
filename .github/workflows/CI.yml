@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # -------------------------------
+      # Cache Poetry virtualenv
+      # -------------------------------
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
+
+      - name: Install dependencies
+        run: make requirements
+
+      - name: Lint code
+        run: make lint
+
+      - name: Check formatting
+        run: poetry run ruff format --check diabetes_classifier
+
+      - name: Run tests
+        run: make test
+
+      # -------------------------------
+      # Optional pipeline (safe parts)
+      # -------------------------------
+      - name: Run data pipeline
+        run: |
+          make clean_data
+          make features
+          make train
+          make classify
