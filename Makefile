@@ -32,7 +32,7 @@ clean:
 lint:
 	flake8 diabetes_classifier
 	isort --check --diff diabetes_classifier
-	black --check diabetes_classifier
+	ruff check diabetes_classifier
 
 ## Format source code with black
 .PHONY: format
