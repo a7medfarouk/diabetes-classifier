@@ -12,11 +12,13 @@ import plotly.graph_objects as go
 import streamlit as st
 from sklearn.ensemble import RandomForestClassifier
 
+from diabetes_classifier.config import INTERIM_DATA_DIR, PROCESSED_DATA_DIR
+
 # ─────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────
-DATA_PATH = "data/processed/featured_train_brfss.csv"
-
+DATA_PATH = PROCESSED_DATA_DIR / "featured_train_brfss.csv"
+RAW_DATA_PATH = INTERIM_DATA_DIR / "train_brfss_dataset.csv"
 ACCENT = "#58a6ff"
 DANGER = "#f85149"
 SUCCESS = "#3fb950"
@@ -674,7 +676,7 @@ def build_lifestyle_score_chart(df: pd.DataFrame):
 # ─────────────────────────────────────────────
 # TAB RENDERERS
 # ─────────────────────────────────────────────
-def render_tab_eda(df: pd.DataFrame, pct_diab: float):
+def render_tab_eda(df: pd.DataFrame, df_raw: pd.DataFrame):
     c_dist, c_bmi = st.columns([1, 1.6])
 
     with c_dist:
@@ -682,7 +684,11 @@ def render_tab_eda(df: pd.DataFrame, pct_diab: float):
         render_chart_header(
             "Class Distribution", "Target variable balance after filtering"
         )
-        plot(build_class_distribution_chart(df, pct_diab))
+        plot(
+            build_class_distribution_chart(
+                df_raw, int(df_raw["Diabetes_binary"].sum()) / len(df_raw)
+            )
+        )
         close_chart_card()
         render_insight("""
           <strong>Class Imbalance:</strong> The dataset shows a significant skew —
@@ -736,32 +742,6 @@ def render_tab_eda(df: pd.DataFrame, pct_diab: float):
           the "Poor" tier contains ~40%+ diabetic patients. This self-reported feature captures
           composite health status and should rank highly in feature importance.
         """)
-
-    spacer()
-    render_section_title("Health Days Binning Analysis")
-    c_m, c_p = st.columns(2)
-
-    for col_w, feat_mod, feat_sev, title in [
-        (
-            c_m,
-            "MentHlth_binned_Moderate",
-            "MentHlth_binned_Severe",
-            "Mental Health Days × Diabetes",
-        ),
-        (
-            c_p,
-            "PhysHlth_binned_Moderate",
-            "PhysHlth_binned_Severe",
-            "Physical Health Days × Diabetes",
-        ),
-    ]:
-        if feat_mod in df.columns and feat_sev in df.columns:
-            with col_w:
-                open_chart_card()
-                render_chart_header(title)
-                plot(build_health_days_chart(df, feat_mod, feat_sev))
-                close_chart_card()
-
     spacer()
     render_section_title("Cardio Comorbidity Score")
 
@@ -1037,7 +1017,7 @@ def render_kpi_row(kpis: dict):
         render_kpi(col, label, value, delta)
 
 
-def render_tabs(df: pd.DataFrame, kpis: dict):
+def render_tabs(df: pd.DataFrame, df_raw: pd.DataFrame):
     tab_eda, tab_feat, tab_model, tab_biz = st.tabs(
         [
             " EDA Findings ",
@@ -1048,7 +1028,7 @@ def render_tabs(df: pd.DataFrame, kpis: dict):
     )
 
     with tab_eda:
-        render_tab_eda(df, kpis["pct_diab"])
+        render_tab_eda(df, df_raw)
     with tab_feat:
         render_tab_features(df)
     with tab_model:
@@ -1066,11 +1046,11 @@ def main():
 
     df = add_derived_columns(load_data(DATA_PATH))
     kpis = compute_kpis(df)
-
+    df_raw = add_derived_columns(load_data(RAW_DATA_PATH))
     render_page_header()
     render_kpi_row(kpis)
     spacer()
-    render_tabs(df, kpis)
+    render_tabs(df, df_raw)
 
 
 if __name__ == "__main__":
