@@ -42,7 +42,7 @@ jobs:
         run: make requirements
 
       - name: Lint code
-        run: make lint
+        run: poetry run make lint
 
       - name: Check formatting
         run: poetry run ruff format --check diabetes_classifier
