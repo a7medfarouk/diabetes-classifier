@@ -5,40 +5,62 @@ Requires:  streamlit plotly pandas scikit-learn imbalanced-learn
 Dataset:   data/processed/featured_train_brfss.csv  (relative to this file)
 """
 
-import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import streamlit as st
 from sklearn.ensemble import RandomForestClassifier
-
 
 # ─────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────
 DATA_PATH = "data/processed/featured_train_brfss.csv"
 
-ACCENT   = "#58a6ff"
-DANGER   = "#f85149"
-SUCCESS  = "#3fb950"
-WARN     = "#f0883e"
-PURPLE   = "#bc8cff"
-CARD_BG  = "#161b22"
+ACCENT = "#58a6ff"
+DANGER = "#f85149"
+SUCCESS = "#3fb950"
+WARN = "#f0883e"
+PURPLE = "#bc8cff"
+CARD_BG = "#161b22"
 GRID_COL = "#21262d"
 
 INCOME_LABELS = {
-    1: "<$10k", 2: "$10-15k", 3: "$15-20k", 4: "$20-25k",
-    5: "$25-35k", 6: "$35-50k", 7: "$50-75k", 8: ">$75k",
+    1: "<$10k",
+    2: "$10-15k",
+    3: "$15-20k",
+    4: "$20-25k",
+    5: "$25-35k",
+    6: "$35-50k",
+    7: "$50-75k",
+    8: ">$75k",
 }
 EDUCATION_LABELS = {
-    1: "No School", 2: "Elem.", 3: "Some HS",
-    4: "HS Grad", 5: "Some College", 6: "College+",
+    1: "No School",
+    2: "Elem.",
+    3: "Some HS",
+    4: "HS Grad",
+    5: "Some College",
+    6: "College+",
 }
-GENERAL_HEALTH_LABELS = {1: "Excellent", 2: "Very Good", 3: "Good", 4: "Fair", 5: "Poor"}
+GENERAL_HEALTH_LABELS = {
+    1: "Excellent",
+    2: "Very Good",
+    3: "Good",
+    4: "Fair",
+    5: "Poor",
+}
 
-EXCLUDE_COLS     = {"Diabetes_binary", "Diabetes_label", "Sex_label"}
-CONTINUOUS_FEATS = ["BMI", "Age", "GenHlth", "Income", "Education",
-                    "Cardio_Comorbidity_Score", "Lifestyle_Score"]
+EXCLUDE_COLS = {"Diabetes_binary", "Diabetes_label", "Sex_label"}
+CONTINUOUS_FEATS = [
+    "BMI",
+    "Age",
+    "GenHlth",
+    "Income",
+    "Education",
+    "Cardio_Comorbidity_Score",
+    "Lifestyle_Score",
+]
 
 GLOBAL_CSS = """
 <style>
@@ -179,33 +201,40 @@ def load_data(path: str) -> pd.DataFrame:
 def add_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["Diabetes_label"] = df["Diabetes_binary"].map({0: "No Diabetes", 1: "Diabetes"})
-    df["Sex_label"]      = df["Sex"].map({0: "Female", 1: "Male"})
+    df["Sex_label"] = df["Sex"].map({0: "Female", 1: "Male"})
     return df
 
 
 def compute_kpis(df: pd.DataFrame) -> dict:
-    total    = len(df)
+    total = len(df)
     diabetic = int(df["Diabetes_binary"].sum())
     return {
-        "total":       total,
-        "diabetic":    diabetic,
-        "pct_diab":    diabetic / total * 100 if total else 0,
-        "mean_bmi":    df["BMI"].mean(),
-        "mean_age":    df["Age"].mean(),
+        "total": total,
+        "diabetic": diabetic,
+        "pct_diab": diabetic / total * 100 if total else 0,
+        "mean_bmi": df["BMI"].mean(),
+        "mean_age": df["Age"].mean(),
         "mean_cardio": df["Cardio_Comorbidity_Score"].mean(),
     }
 
 
 def get_model_benchmark_data() -> pd.DataFrame:
-    return pd.DataFrame({
-        "Model":     ["Logistic Regression", "Decision Tree", "Random Forest",
-                      "Gradient Boosting (XGBoost)", "Neural Network (MLP)"],
-        "Accuracy":  [0.748, 0.731, 0.784, 0.803, 0.791],
-        "Precision": [0.641, 0.598, 0.692, 0.718, 0.704],
-        "Recall":    [0.713, 0.744, 0.738, 0.761, 0.752],
-        "F1 Score":  [0.675, 0.663, 0.714, 0.739, 0.727],
-        "ROC-AUC":   [0.821, 0.779, 0.857, 0.879, 0.863],
-    })
+    return pd.DataFrame(
+        {
+            "Model": [
+                "Logistic Regression",
+                "Decision Tree",
+                "Random Forest",
+                "Gradient Boosting (XGBoost)",
+                "Neural Network (MLP)",
+            ],
+            "Accuracy": [0.748, 0.731, 0.784, 0.803, 0.791],
+            "Precision": [0.641, 0.598, 0.692, 0.718, 0.704],
+            "Recall": [0.713, 0.744, 0.738, 0.761, 0.752],
+            "F1 Score": [0.675, 0.663, 0.714, 0.739, 0.727],
+            "ROC-AUC": [0.821, 0.779, 0.857, 0.879, 0.863],
+        }
+    )
 
 
 def build_precision_recall_data() -> pd.DataFrame:
@@ -213,13 +242,15 @@ def build_precision_recall_data() -> pd.DataFrame:
     rows = []
     for model, prec_base, rec_base in [
         ("Logistic Regression", 0.64, 0.71),
-        ("Random Forest",       0.69, 0.74),
-        ("XGBoost",             0.72, 0.76),
+        ("Random Forest", 0.69, 0.74),
+        ("XGBoost", 0.72, 0.76),
     ]:
         for t in thresholds:
             prec = min(1.0, prec_base + (t - 0.5) * 0.6)
-            rec  = max(0.0, rec_base  - (t - 0.5) * 0.8)
-            rows.append({"Model": model, "Threshold": t, "Precision": prec, "Recall": rec})
+            rec = max(0.0, rec_base - (t - 0.5) * 0.8)
+            rows.append(
+                {"Model": model, "Threshold": t, "Precision": prec, "Recall": rec}
+            )
     return pd.DataFrame(rows)
 
 
@@ -227,7 +258,9 @@ def build_precision_recall_data() -> pd.DataFrame:
 def compute_feature_importances(X: pd.DataFrame, y: pd.Series) -> pd.Series:
     rf = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     rf.fit(X, y)
-    return pd.Series(rf.feature_importances_, index=X.columns).sort_values(ascending=True)
+    return pd.Series(rf.feature_importances_, index=X.columns).sort_values(
+        ascending=True
+    )
 
 
 def classify_health_bin(row: pd.Series, mod_col: str, sev_col: str) -> str:
@@ -256,7 +289,9 @@ def close_chart_card():
 def render_chart_header(title: str, caption: str = None):
     st.markdown(f"<div class='chart-title'>{title}</div>", unsafe_allow_html=True)
     if caption:
-        st.markdown(f"<div class='chart-caption'>{caption}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='chart-caption'>{caption}</div>", unsafe_allow_html=True
+        )
 
 
 def render_insight(body_html: str):
@@ -265,13 +300,16 @@ def render_insight(body_html: str):
 
 def render_kpi(col, label: str, value: str, delta: str = None):
     delta_html = f"<div class='kpi-delta-pos'>{delta}</div>" if delta else ""
-    col.markdown(f"""
+    col.markdown(
+        f"""
     <div class='kpi-card'>
       <div class='kpi-label'>{label}</div>
       <div class='kpi-value'>{value}</div>
       {delta_html}
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 def spacer():
@@ -303,20 +341,24 @@ def apply_chart_theme(fig, height: int = 340):
 # CHART BUILDERS  (each builds and returns a fig)
 # ─────────────────────────────────────────────
 def build_class_distribution_chart(df: pd.DataFrame, pct_diab: float):
-    counts         = df["Diabetes_label"].value_counts().reset_index()
+    counts = df["Diabetes_label"].value_counts().reset_index()
     counts.columns = ["Label", "Count"]
 
-    fig = go.Figure(go.Pie(
-        labels=counts["Label"],
-        values=counts["Count"],
-        hole=0.62,
-        marker=dict(colors=[DANGER, SUCCESS]),
-        textinfo="percent",
-        textfont_size=12,
-    ))
+    fig = go.Figure(
+        go.Pie(
+            labels=counts["Label"],
+            values=counts["Count"],
+            hole=0.62,
+            marker=dict(colors=[DANGER, SUCCESS]),
+            textinfo="percent",
+            textfont_size=12,
+        )
+    )
     fig.add_annotation(
         text=f"{pct_diab:.1f}%<br><span style='font-size:10px'>diabetic</span>",
-        x=0.5, y=0.5, showarrow=False,
+        x=0.5,
+        y=0.5,
+        showarrow=False,
         font=dict(size=16, color="#e6edf3", family="Syne"),
         align="center",
     )
@@ -327,43 +369,55 @@ def build_bmi_histogram(df: pd.DataFrame):
     fig = go.Figure()
     for label, color in [("No Diabetes", SUCCESS), ("Diabetes", DANGER)]:
         subset = df[df["Diabetes_label"] == label]["BMI"]
-        fig.add_trace(go.Histogram(
-            x=subset, name=label,
-            marker_color=color, opacity=0.72,
-            nbinsx=50, histnorm="probability density",
-        ))
+        fig.add_trace(
+            go.Histogram(
+                x=subset,
+                name=label,
+                marker_color=color,
+                opacity=0.72,
+                nbinsx=50,
+                histnorm="probability density",
+            )
+        )
     fig.update_layout(barmode="overlay")
     return apply_chart_theme(fig, height=290)
 
 
 def build_age_rate_chart(df: pd.DataFrame):
-    age_grp             = df.groupby("Age")["Diabetes_binary"].agg(["mean", "count"]).reset_index()
-    age_grp.columns     = ["Age", "Rate", "Count"]
+    age_grp = df.groupby("Age")["Diabetes_binary"].agg(["mean", "count"]).reset_index()
+    age_grp.columns = ["Age", "Rate", "Count"]
     age_grp["Rate_pct"] = age_grp["Rate"] * 100
 
-    fig = go.Figure(go.Bar(
-        x=age_grp["Age"], y=age_grp["Rate_pct"],
-        marker=dict(
-            color=age_grp["Rate_pct"],
-            colorscale=[[0, SUCCESS], [0.5, WARN], [1, DANGER]],
-            showscale=False,
-        ),
-        name="Diabetes Rate %",
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=age_grp["Age"],
+            y=age_grp["Rate_pct"],
+            marker=dict(
+                color=age_grp["Rate_pct"],
+                colorscale=[[0, SUCCESS], [0.5, WARN], [1, DANGER]],
+                showscale=False,
+            ),
+            name="Diabetes Rate %",
+        )
+    )
     fig.update_xaxes(title_text="Age Group (1=18-24, 13=80+)")
     fig.update_yaxes(title_text="Diabetes Rate (%)")
     return apply_chart_theme(fig, height=290)
 
 
 def build_general_health_chart(df: pd.DataFrame):
-    gh                  = df.groupby(["GenHlth", "Diabetes_label"]).size().reset_index(name="n")
-    gh["pct"]           = gh["n"] / gh.groupby("GenHlth")["n"].transform("sum") * 100
+    gh = df.groupby(["GenHlth", "Diabetes_label"]).size().reset_index(name="n")
+    gh["pct"] = gh["n"] / gh.groupby("GenHlth")["n"].transform("sum") * 100
     gh["GenHlth_label"] = gh["GenHlth"].map(GENERAL_HEALTH_LABELS)
 
     fig = px.bar(
-        gh, x="GenHlth_label", y="pct", color="Diabetes_label",
+        gh,
+        x="GenHlth_label",
+        y="pct",
+        color="Diabetes_label",
         color_discrete_map={"No Diabetes": SUCCESS, "Diabetes": DANGER},
-        barmode="stack", text_auto=".1f",
+        barmode="stack",
+        text_auto=".1f",
     )
     fig.update_traces(textfont_size=9)
     fig.update_xaxes(title_text="General Health")
@@ -372,13 +426,16 @@ def build_general_health_chart(df: pd.DataFrame):
 
 
 def build_health_days_chart(df: pd.DataFrame, mod_col: str, sev_col: str):
-    tmp        = df.copy()
+    tmp = df.copy()
     tmp["Bin"] = tmp.apply(lambda r: classify_health_bin(r, mod_col, sev_col), axis=1)
-    grp        = tmp.groupby(["Bin", "Diabetes_label"]).size().reset_index(name="n")
+    grp = tmp.groupby(["Bin", "Diabetes_label"]).size().reset_index(name="n")
     grp["pct"] = grp["n"] / grp.groupby("Bin")["n"].transform("sum") * 100
 
     fig = px.bar(
-        grp, x="Bin", y="pct", color="Diabetes_label",
+        grp,
+        x="Bin",
+        y="pct",
+        color="Diabetes_label",
         color_discrete_map={"No Diabetes": SUCCESS, "Diabetes": DANGER},
         barmode="group",
         category_orders={"Bin": ["Zero", "Moderate (1-13)", "Severe (14-30)"]},
@@ -388,13 +445,23 @@ def build_health_days_chart(df: pd.DataFrame, mod_col: str, sev_col: str):
 
 
 def build_comorbidity_stacked_chart(df: pd.DataFrame):
-    cs        = df.groupby(["Cardio_Comorbidity_Score", "Diabetes_label"]).size().reset_index(name="n")
-    cs["pct"] = cs["n"] / cs.groupby("Cardio_Comorbidity_Score")["n"].transform("sum") * 100
+    cs = (
+        df.groupby(["Cardio_Comorbidity_Score", "Diabetes_label"])
+        .size()
+        .reset_index(name="n")
+    )
+    cs["pct"] = (
+        cs["n"] / cs.groupby("Cardio_Comorbidity_Score")["n"].transform("sum") * 100
+    )
 
     fig = px.bar(
-        cs, x="Cardio_Comorbidity_Score", y="pct", color="Diabetes_label",
+        cs,
+        x="Cardio_Comorbidity_Score",
+        y="pct",
+        color="Diabetes_label",
         color_discrete_map={"No Diabetes": SUCCESS, "Diabetes": DANGER},
-        barmode="group", text_auto=".1f",
+        barmode="group",
+        text_auto=".1f",
     )
     fig.update_traces(textfont_size=9)
     fig.update_xaxes(title_text="Cardio Comorbidity Score")
@@ -403,11 +470,17 @@ def build_comorbidity_stacked_chart(df: pd.DataFrame):
 
 
 def build_feature_importance_chart(importances: pd.Series):
-    colors = [DANGER if v > importances.median() else ACCENT for v in importances.values]
-    fig = go.Figure(go.Bar(
-        x=importances.values, y=importances.index,
-        orientation="h", marker_color=colors,
-    ))
+    colors = [
+        DANGER if v > importances.median() else ACCENT for v in importances.values
+    ]
+    fig = go.Figure(
+        go.Bar(
+            x=importances.values,
+            y=importances.index,
+            orientation="h",
+            marker_color=colors,
+        )
+    )
     fig.update_xaxes(title_text="Importance Score")
     return apply_chart_theme(fig, height=420)
 
@@ -419,11 +492,14 @@ def build_correlation_chart(df: pd.DataFrame, feature_cols: list):
         .drop("Diabetes_binary")
         .sort_values()
     )
-    fig = go.Figure(go.Bar(
-        x=corr.values, y=corr.index,
-        orientation="h",
-        marker_color=[DANGER if v > 0 else SUCCESS for v in corr.values],
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=corr.values,
+            y=corr.index,
+            orientation="h",
+            marker_color=[DANGER if v > 0 else SUCCESS for v in corr.values],
+        )
+    )
     fig.add_vline(x=0, line_color="#484f58", line_width=1)
     fig.update_xaxes(title_text="Pearson r")
     return apply_chart_theme(fig, height=420)
@@ -431,9 +507,13 @@ def build_correlation_chart(df: pd.DataFrame, feature_cols: list):
 
 def build_feature_density_chart(df: pd.DataFrame, feature: str):
     fig = px.histogram(
-        df, x=feature, color="Diabetes_label",
-        facet_col="Sex_label", barmode="overlay",
-        histnorm="probability density", nbins=40,
+        df,
+        x=feature,
+        color="Diabetes_label",
+        facet_col="Sex_label",
+        barmode="overlay",
+        histnorm="probability density",
+        nbins=40,
         color_discrete_map={"No Diabetes": SUCCESS, "Diabetes": DANGER},
     )
     return apply_chart_theme(fig, height=320)
@@ -445,15 +525,21 @@ def build_model_radar_chart(df_models: pd.DataFrame, metrics: list):
     for i, row in df_models.iterrows():
         vals = [row[m] for m in metrics] + [row[metrics[0]]]
         cats = metrics + [metrics[0]]
-        fig.add_trace(go.Scatterpolar(
-            r=vals, theta=cats,
-            fill="toself", name=row["Model"],
-            line_color=pal[i], opacity=0.75,
-        ))
+        fig.add_trace(
+            go.Scatterpolar(
+                r=vals,
+                theta=cats,
+                fill="toself",
+                name=row["Model"],
+                line_color=pal[i],
+                opacity=0.75,
+            )
+        )
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(visible=True, range=[0.6, 0.95],
-                            gridcolor=GRID_COL, color="#484f58"),
+            radialaxis=dict(
+                visible=True, range=[0.6, 0.95], gridcolor=GRID_COL, color="#484f58"
+            ),
             angularaxis=dict(gridcolor=GRID_COL),
             bgcolor=CARD_BG,
         )
@@ -462,47 +548,55 @@ def build_model_radar_chart(df_models: pd.DataFrame, metrics: list):
 
 
 def build_roc_auc_chart(df_models: pd.DataFrame):
-    fig = go.Figure(go.Bar(
-        x=df_models["ROC-AUC"], y=df_models["Model"],
-        orientation="h",
-        marker=dict(
-            color=df_models["ROC-AUC"],
-            colorscale=[[0, ACCENT], [1, DANGER]],
-        ),
-        text=df_models["ROC-AUC"].round(3),
-        textposition="outside",
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=df_models["ROC-AUC"],
+            y=df_models["Model"],
+            orientation="h",
+            marker=dict(
+                color=df_models["ROC-AUC"],
+                colorscale=[[0, ACCENT], [1, DANGER]],
+            ),
+            text=df_models["ROC-AUC"].round(3),
+            textposition="outside",
+        )
+    )
     fig.update_xaxes(range=[0.7, 0.92], title_text="ROC-AUC")
     return apply_chart_theme(fig, height=280)
 
 
 def build_precision_recall_chart(df_pr: pd.DataFrame):
     fig = px.line(
-        df_pr, x="Recall", y="Precision", color="Model",
+        df_pr,
+        x="Recall",
+        y="Precision",
+        color="Model",
         color_discrete_map={
             "Logistic Regression": ACCENT,
-            "Random Forest":       WARN,
-            "XGBoost":             DANGER,
+            "Random Forest": WARN,
+            "XGBoost": DANGER,
         },
     )
     return apply_chart_theme(fig, height=300)
 
 
 def build_income_chart(df: pd.DataFrame):
-    inc                 = df.groupby("Income")["Diabetes_binary"].mean().reset_index()
-    inc.columns         = ["Income", "Rate"]
-    inc["Rate_pct"]     = inc["Rate"] * 100
+    inc = df.groupby("Income")["Diabetes_binary"].mean().reset_index()
+    inc.columns = ["Income", "Rate"]
+    inc["Rate_pct"] = inc["Rate"] * 100
     inc["Income_label"] = inc["Income"].map(INCOME_LABELS)
 
-    fig = go.Figure(go.Bar(x=inc["Income_label"], y=inc["Rate_pct"], marker_color=ACCENT))
+    fig = go.Figure(
+        go.Bar(x=inc["Income_label"], y=inc["Rate_pct"], marker_color=ACCENT)
+    )
     fig.update_yaxes(title_text="Diabetes Rate (%)")
     return apply_chart_theme(fig, height=260)
 
 
 def build_education_chart(df: pd.DataFrame):
-    edu              = df.groupby("Education")["Diabetes_binary"].mean().reset_index()
-    edu.columns      = ["Education", "Rate"]
-    edu["Rate_pct"]  = edu["Rate"] * 100
+    edu = df.groupby("Education")["Diabetes_binary"].mean().reset_index()
+    edu.columns = ["Education", "Rate"]
+    edu["Rate_pct"] = edu["Rate"] * 100
     edu["Edu_label"] = edu["Education"].map(EDUCATION_LABELS)
 
     fig = go.Figure(go.Bar(x=edu["Edu_label"], y=edu["Rate_pct"], marker_color=PURPLE))
@@ -512,30 +606,42 @@ def build_education_chart(df: pd.DataFrame):
 
 
 def build_healthcare_access_chart(df: pd.DataFrame):
-    hc             = df.groupby(["AnyHealthcare", "NoDocbcCost"])["Diabetes_binary"].mean().reset_index()
-    hc["Group"]    = hc.apply(
-        lambda r: f"HC={'Yes' if r['AnyHealthcare']==1 else 'No'} · Cost={'Yes' if r['NoDocbcCost']==1 else 'No'}",
+    hc = (
+        df.groupby(["AnyHealthcare", "NoDocbcCost"])["Diabetes_binary"]
+        .mean()
+        .reset_index()
+    )
+    hc["Group"] = hc.apply(
+        lambda r: (
+            f"HC={'Yes' if r['AnyHealthcare'] == 1 else 'No'} · Cost={'Yes' if r['NoDocbcCost'] == 1 else 'No'}"
+        ),
         axis=1,
     )
     hc["Rate_pct"] = hc["Diabetes_binary"] * 100
 
-    fig = go.Figure(go.Bar(
-        x=hc["Group"], y=hc["Rate_pct"],
-        marker_color=[DANGER if v > 15 else ACCENT for v in hc["Rate_pct"]],
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=hc["Group"],
+            y=hc["Rate_pct"],
+            marker_color=[DANGER if v > 15 else ACCENT for v in hc["Rate_pct"]],
+        )
+    )
     fig.update_yaxes(title_text="Diabetes Rate (%)")
     fig.update_xaxes(tickangle=-15, tickfont_size=9)
     return apply_chart_theme(fig, height=260)
 
 
 def build_cardio_score_scatter(df: pd.DataFrame):
-    grp             = df.groupby("Cardio_Comorbidity_Score")["Diabetes_binary"].mean().reset_index()
+    grp = df.groupby("Cardio_Comorbidity_Score")["Diabetes_binary"].mean().reset_index()
     grp["Rate_pct"] = grp["Diabetes_binary"] * 100
-    grp["Size"]     = df.groupby("Cardio_Comorbidity_Score").size().values
+    grp["Size"] = df.groupby("Cardio_Comorbidity_Score").size().values
 
     fig = px.scatter(
-        grp, x="Cardio_Comorbidity_Score", y="Rate_pct",
-        size="Size", color="Rate_pct",
+        grp,
+        x="Cardio_Comorbidity_Score",
+        y="Rate_pct",
+        size="Size",
+        color="Rate_pct",
         color_continuous_scale=[[0, SUCCESS], [0.5, WARN], [1, DANGER]],
         size_max=55,
     )
@@ -546,17 +652,20 @@ def build_cardio_score_scatter(df: pd.DataFrame):
 
 
 def build_lifestyle_score_chart(df: pd.DataFrame):
-    grp             = df.groupby("Lifestyle_Score")["Diabetes_binary"].mean().reset_index()
+    grp = df.groupby("Lifestyle_Score")["Diabetes_binary"].mean().reset_index()
     grp["Rate_pct"] = grp["Diabetes_binary"] * 100
 
-    fig = go.Figure(go.Bar(
-        x=grp["Lifestyle_Score"], y=grp["Rate_pct"],
-        marker=dict(
-            color=grp["Rate_pct"],
-            colorscale=[[0, SUCCESS], [1, DANGER]],
-            reversescale=True,
-        ),
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=grp["Lifestyle_Score"],
+            y=grp["Rate_pct"],
+            marker=dict(
+                color=grp["Rate_pct"],
+                colorscale=[[0, SUCCESS], [1, DANGER]],
+                reversescale=True,
+            ),
+        )
+    )
     fig.update_xaxes(title_text="Lifestyle Score", tickvals=[0, 1, 2, 3])
     fig.update_yaxes(title_text="Diabetes Rate (%)")
     return apply_chart_theme(fig, height=300)
@@ -570,7 +679,9 @@ def render_tab_eda(df: pd.DataFrame, pct_diab: float):
 
     with c_dist:
         open_chart_card()
-        render_chart_header("Class Distribution", "Target variable balance after filtering")
+        render_chart_header(
+            "Class Distribution", "Target variable balance after filtering"
+        )
         plot(build_class_distribution_chart(df, pct_diab))
         close_chart_card()
         render_insight("""
@@ -631,8 +742,18 @@ def render_tab_eda(df: pd.DataFrame, pct_diab: float):
     c_m, c_p = st.columns(2)
 
     for col_w, feat_mod, feat_sev, title in [
-        (c_m, "MentHlth_binned_Moderate", "MentHlth_binned_Severe", "Mental Health Days × Diabetes"),
-        (c_p, "PhysHlth_binned_Moderate", "PhysHlth_binned_Severe", "Physical Health Days × Diabetes"),
+        (
+            c_m,
+            "MentHlth_binned_Moderate",
+            "MentHlth_binned_Severe",
+            "Mental Health Days × Diabetes",
+        ),
+        (
+            c_p,
+            "PhysHlth_binned_Moderate",
+            "PhysHlth_binned_Severe",
+            "Physical Health Days × Diabetes",
+        ),
     ]:
         if feat_mod in df.columns and feat_sev in df.columns:
             with col_w:
@@ -715,16 +836,19 @@ def render_tab_features(df: pd.DataFrame):
 
 def render_tab_model():
     render_section_title("Simulated Model Comparison")
-    st.markdown("""
+    st.markdown(
+        """
     <div class='chart-caption' style='margin-bottom:1rem'>
       Representative benchmark metrics for common classifiers on BRFSS data.
       Replace with your actual cross-validation results once models are trained.
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
     df_models = get_model_benchmark_data()
-    metrics   = ["Accuracy", "Precision", "Recall", "F1 Score", "ROC-AUC"]
-    cm1, cm2  = st.columns([1.2, 1])
+    metrics = ["Accuracy", "Precision", "Recall", "F1 Score", "ROC-AUC"]
+    cm1, cm2 = st.columns([1.2, 1])
 
     with cm1:
         open_chart_card()
@@ -748,9 +872,9 @@ def render_tab_model():
     spacer()
     render_section_title("Full Metrics Table")
     st.dataframe(
-        df_models.set_index("Model").style
-            .background_gradient(cmap="Blues", axis=None)
-            .format("{:.3f}"),
+        df_models.set_index("Model")
+        .style.background_gradient(cmap="Blues", axis=None)
+        .format("{:.3f}"),
         use_container_width=True,
     )
 
@@ -844,61 +968,84 @@ def render_tab_business(df: pd.DataFrame):
 
 def _render_recommendations():
     recs = [
-        ("🎯", "Prioritise Recall",
-         "In a clinical screening context, missing a diabetic case (false negative) is far costlier than a false alarm. Optimise threshold for Recall ≥ 0.80 and monitor F1 as secondary metric."),
-        ("🔧", "Use Engineered Scores",
-         "Cardio_Comorbidity_Score and Lifestyle_Score provide higher signal than the individual binary features they aggregate. Keep them in the final feature set."),
-        ("⚖️", "Retain SMOTE-Balanced Training",
-         "The raw 86/14 class split severely degrades minority-class performance. SMOTE-balanced training improves diabetic detection across all model types."),
-        ("👥", "Segment by Income & Education",
-         "Low-income / low-education populations carry disproportionate risk and may have systematic data gaps. Consider separate calibration or fairness auditing per demographic subgroup."),
-        ("📱", "Business Deployment: Risk Score API",
-         "Serve the trained XGBoost model as a REST API. Integrate with EHR systems to flag high-risk patients (Cardio ≥ 2, Age ≥ 9, GenHlth ≥ 4) for proactive outreach."),
+        (
+            "🎯",
+            "Prioritise Recall",
+            "In a clinical screening context, missing a diabetic case (false negative) is far costlier than a false alarm. Optimise threshold for Recall ≥ 0.80 and monitor F1 as secondary metric.",
+        ),
+        (
+            "🔧",
+            "Use Engineered Scores",
+            "Cardio_Comorbidity_Score and Lifestyle_Score provide higher signal than the individual binary features they aggregate. Keep them in the final feature set.",
+        ),
+        (
+            "⚖️",
+            "Retain SMOTE-Balanced Training",
+            "The raw 86/14 class split severely degrades minority-class performance. SMOTE-balanced training improves diabetic detection across all model types.",
+        ),
+        (
+            "👥",
+            "Segment by Income & Education",
+            "Low-income / low-education populations carry disproportionate risk and may have systematic data gaps. Consider separate calibration or fairness auditing per demographic subgroup.",
+        ),
+        (
+            "📱",
+            "Business Deployment: Risk Score API",
+            "Serve the trained XGBoost model as a REST API. Integrate with EHR systems to flag high-risk patients (Cardio ≥ 2, Age ≥ 9, GenHlth ≥ 4) for proactive outreach.",
+        ),
     ]
 
-    r1, r2     = st.columns(2)
+    r1, r2 = st.columns(2)
     cols_cycle = [r1, r2, r1, r2, r1]
 
     for (icon, title, body), col in zip(recs, cols_cycle):
-        col.markdown(f"""
+        col.markdown(
+            f"""
         <div style='background:#1c2128;border:1px solid #21262d;border-radius:12px;
                     padding:1rem 1.2rem;margin-bottom:.9rem'>
           <div style='font-family:Syne,sans-serif;font-size:.85rem;font-weight:700;
                       color:#e6edf3;margin-bottom:.4rem'>{icon} {title}</div>
           <div style='font-size:.78rem;color:#8b949e;line-height:1.55'>{body}</div>
         </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
 
 # ─────────────────────────────────────────────
 # PAGE LAYOUT
 # ─────────────────────────────────────────────
 def render_page_header():
-    st.markdown("""
+    st.markdown(
+        """
     <div class='page-title'>Diabetes Classifier · EDA Dashboard</div>
     <div class='page-sub'>BRFSS 2015 Feature-Engineered Training Set · Exploratory Data Analysis & Business Insights</div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_kpi_row(kpis: dict):
     k1, k2, k3, k4, k5 = st.columns(5)
     for col, label, value, delta in [
-        (k1, "Total Records",    f"{kpis['total']:,}",          None),
-        (k2, "Diabetic Cases",   f"{kpis['diabetic']:,}",       None),
-        (k3, "Prevalence Rate",  f"{kpis['pct_diab']:.1f}%",   "vs ~9% US avg"),
-        (k4, "Avg BMI (scaled)", f"{kpis['mean_bmi']:.3f}",    None),
+        (k1, "Total Records", f"{kpis['total']:,}", None),
+        (k2, "Diabetic Cases", f"{kpis['diabetic']:,}", None),
+        (k3, "Prevalence Rate", f"{kpis['pct_diab']:.1f}%", "vs ~9% US avg"),
+        (k4, "Avg BMI (scaled)", f"{kpis['mean_bmi']:.3f}", None),
         (k5, "Avg Cardio Score", f"{kpis['mean_cardio']:.2f}", "0-4 scale"),
     ]:
         render_kpi(col, label, value, delta)
 
 
 def render_tabs(df: pd.DataFrame, kpis: dict):
-    tab_eda, tab_feat, tab_model, tab_biz = st.tabs([
-        " EDA Findings ",
-        " Feature-to-Target ",
-        " Model Insights ",
-        " Business Insights ",
-    ])
+    tab_eda, tab_feat, tab_model, tab_biz = st.tabs(
+        [
+            " EDA Findings ",
+            " Feature-to-Target ",
+            " Model Insights ",
+            " Business Insights ",
+        ]
+    )
 
     with tab_eda:
         render_tab_eda(df, kpis["pct_diab"])
@@ -917,7 +1064,7 @@ def main():
     configure_page()
     inject_global_styles()
 
-    df   = add_derived_columns(load_data(DATA_PATH))
+    df = add_derived_columns(load_data(DATA_PATH))
     kpis = compute_kpis(df)
 
     render_page_header()

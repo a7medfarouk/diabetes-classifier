@@ -27,18 +27,16 @@ clean:
 	find . -type d -name "__pycache__" -delete
 
 
-## Lint using flake8, black, and isort (use `make format` to do formatting)
+## Lint using flake8 and ruff (use `make format` to do formatting)
 .PHONY: lint
 lint:
 	flake8 diabetes_classifier
-	isort --check --diff diabetes_classifier
-	black --check diabetes_classifier
+	ruff check --fix diabetes_classifier
 
-## Format source code with black
+## Format source code with ruff
 .PHONY: format
 format:
-	isort diabetes_classifier
-	black diabetes_classifier
+	ruff format diabetes_classifier
 
 
 
