@@ -1,3 +1,4 @@
+import json
 import warnings
 from pathlib import Path
 
@@ -317,7 +318,15 @@ def main(output_path: Path = MODELS_DIR):
             get_models(), X_train, y_train, X_val, y_val, label="[Default]"
         )
         logger.success(f"\n{dataset.upper()} Default Results:\n{default_results}")
-
+        metrics_json = {
+            "Accuracy": default_results["Accuracy"].tolist(),
+            "Precision": default_results["Precision"].tolist(),
+            "Recall": default_results["Recall"].tolist(),
+            "F1-Score": default_results["F1"].tolist(),
+            "ROC-AUC": default_results["ROC-AUC"].tolist(),
+        }
+        with open(f"{dataset}_metrics.json", "w") as file:
+            json.dump(metrics_json, file, indent=4)
         # 2. PCA then train with default hyper parameters
         logger.info("------------------PCA -----------------------")
         X_train_pca, X_val_pca, _ = apply_pca(X_train, X_val)
@@ -334,6 +343,7 @@ def main(output_path: Path = MODELS_DIR):
         tuned_results = train_and_evaluate(
             tuned_models, X_train, y_train, X_val, y_val, best_params, label="[Tuned]"
         )
+
         logger.success(f"\n{dataset.upper()} Tuned Results:\n{tuned_results}")
 
         # Results

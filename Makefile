@@ -6,11 +6,37 @@ PROJECT_NAME = diabetes-classifier
 PYTHON_VERSION = 3.10
 PYTHON_INTERPRETER = python
 
+# Data paths (using config.py paths)
+RAW_DATA_DIR = data/raw
+PROCESSED_DATA_DIR = data/processed
+MODELS_DIR = models
+REPORTS_DIR = reports
+
 #################################################################################
 # COMMANDS                                                                      #
 #################################################################################
+# ========================
+# Help
+# ========================
+.PHONY: help
+help:
+    @echo "Targets:"
+	@echo "  make requirements - install dependencies"
+	@echo "  make validate     - validate raw + cleaned data"
+	@echo "  make clean_data   - preprocess dataset"
+	@echo "  make features     - feature engineering"
+	@echo "  make train        - train baseline model"
+	@echo "  make classify     - compare models"
+	@echo "  make pipeline     - run full pipeline"
+	@echo "  make test         - run tests"
+	@echo "  make lint         - lint code"
+	@echo "  make format       - format code"
+	@echo "  make clean        - remove artifacts"
 
 
+
+.PHONY: all
+all: clean requirements create_environment format lint test pipeline
 ## Install Python dependencies
 .PHONY: requirements
 requirements:
@@ -58,14 +84,44 @@ create_environment:
 
 
 #################################################################################
-# PROJECT RULES                                                                 #
+# PIPELINE                                                                      #
 #################################################################################
 
 
-## Make dataset
-.PHONY: data
-data: requirements
+## Validate raw + cleaned data
+.PHONY: validate
+validate:
+	$(PYTHON_INTERPRETER) diabetes_classifier/validation.py
+
+## Preprocess dataset
+.PHONY: clean_data
+clean_data:
 	$(PYTHON_INTERPRETER) diabetes_classifier/dataset.py
+
+## Feature engineering
+.PHONY: features
+features:
+	$(PYTHON_INTERPRETER) diabetes_classifier/features.py
+
+## Train baseline model
+.PHONY: train
+train:
+	$(PYTHON_INTERPRETER) diabetes_classifier/modeling/train.py
+
+## Compare models
+.PHONY: classify
+classify:
+	$(PYTHON_INTERPRETER) diabetes_classifier/modeling/predict.py
+
+## Generate final dashboard
+.PHONY: dashboard
+dashboard:
+	streamlit run diabetes_classifier/dashboard.py
+
+## Run full pipeline
+.PHONY: pipeline
+pipeline: clean_data features train classify dashboard
+	@echo "Pipeline completed successfully"
 
 
 #################################################################################
