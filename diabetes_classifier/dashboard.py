@@ -34,7 +34,9 @@ WARN = "#f0883e"
 PURPLE = "#bc8cff"
 CARD_BG = "#161b22"
 GRID_COL = "#21262d"
-
+PROJECT_ROOT = Path(__file__).parent.parent
+TUNED_METRICS_PATH = PROJECT_ROOT / "reports" / "brfss_tuned_metrics.json"
+DEFAULT_METRICS_PATH = PROJECT_ROOT / "reports" / "brfss_default_metrics.json"
 INCOME_LABELS = {
     1: "<$10k",
     2: "$10-15k",
@@ -228,42 +230,17 @@ def compute_kpis(df: pd.DataFrame) -> dict:
 
 
 def get_model_benchmark_data() -> pd.DataFrame:
-    file_path = Path(__file__).parent.parent / "brfss_metrics.json"
-    with open(file_path, "r") as file:
+
+    with open(TUNED_METRICS_PATH, "r") as file:
         metrics = json.load(file)
-    return pd.DataFrame(
-        {
-            "Model": [
-                "Logistic Regression",
-                "Random Forest",
-                "XGBoost",
-                "KNN",
-                "SVM",
-            ],
-            "Accuracy": metrics["Accuracy"],
-            "Precision": metrics["Precision"],
-            "Recall": metrics["Recall"],
-            "F1 Score": metrics["F1-Score"],
-            "ROC-AUC": metrics["ROC-AUC"],
-        }
-    )
 
+    df = pd.DataFrame.from_dict(metrics, orient="index")
 
-def build_precision_recall_data() -> pd.DataFrame:
-    thresholds = np.linspace(0.1, 0.9, 40)
-    rows = []
-    for model, prec_base, rec_base in [
-        ("Logistic Regression", 0.64, 0.71),
-        ("Random Forest", 0.69, 0.74),
-        ("XGBoost", 0.72, 0.76),
-    ]:
-        for t in thresholds:
-            prec = min(1.0, prec_base + (t - 0.5) * 0.6)
-            rec = max(0.0, rec_base - (t - 0.5) * 0.8)
-            rows.append(
-                {"Model": model, "Threshold": t, "Precision": prec, "Recall": rec}
-            )
-    return pd.DataFrame(rows)
+    df = df.reset_index(names="Model")
+
+    df = df.rename(columns={"F1": "F1 Score"})
+
+    return df
 
 
 @st.cache_data(show_spinner=False)
@@ -430,25 +407,6 @@ def build_general_health_chart(df: pd.DataFrame):
     return apply_chart_theme(fig, height=290)
 
 
-def build_health_days_chart(df: pd.DataFrame, mod_col: str, sev_col: str):
-    tmp = df.copy()
-    tmp["Bin"] = tmp.apply(lambda r: classify_health_bin(r, mod_col, sev_col), axis=1)
-    grp = tmp.groupby(["Bin", "Diabetes_label"]).size().reset_index(name="n")
-    grp["pct"] = grp["n"] / grp.groupby("Bin")["n"].transform("sum") * 100
-
-    fig = px.bar(
-        grp,
-        x="Bin",
-        y="pct",
-        color="Diabetes_label",
-        color_discrete_map={"No Diabetes": SUCCESS, "Diabetes": DANGER},
-        barmode="group",
-        category_orders={"Bin": ["Zero", "Moderate (1-13)", "Severe (14-30)"]},
-    )
-    fig.update_yaxes(title_text="% within bin")
-    return apply_chart_theme(fig, height=260)
-
-
 def build_comorbidity_stacked_chart(df: pd.DataFrame):
     cs = (
         df.groupby(["Cardio_Comorbidity_Score", "Diabetes_label"])
@@ -536,7 +494,7 @@ def build_model_radar_chart(df_models: pd.DataFrame, metrics: list):
                 theta=cats,
                 fill="toself",
                 name=row["Model"],
-                line_color=pal[i],
+                line_color=pal[i % len(pal)],
                 opacity=0.75,
             )
         )
@@ -569,24 +527,8 @@ def build_roc_auc_chart(df_models: pd.DataFrame):
     return apply_chart_theme(fig, height=280)
 
 
-def build_precision_recall_chart(df_pr: pd.DataFrame):
-    fig = px.line(
-        df_pr,
-        x="Recall",
-        y="Precision",
-        color="Model",
-        color_discrete_map={
-            "Logistic Regression": ACCENT,
-            "Random Forest": WARN,
-            "XGBoost": DANGER,
-        },
-    )
-    return apply_chart_theme(fig, height=300)
-
-
 def build_income_chart(df: pd.DataFrame):
-    inc = df.groupby("Income")["Diabetes_binary"].mean().reset_index()
-    inc.columns = ["Income", "Rate"]
+    inc = df.groupby("Income")["Diabetes_binary"].mean().reset_index(name="Rate")
     inc["Rate_pct"] = inc["Rate"] * 100
     inc["Income_label"] = inc["Income"].map(INCOME_LABELS)
 
@@ -606,32 +548,6 @@ def build_education_chart(df: pd.DataFrame):
     fig = go.Figure(go.Bar(x=edu["Edu_label"], y=edu["Rate_pct"], marker_color=PURPLE))
     fig.update_yaxes(title_text="Diabetes Rate (%)")
     fig.update_xaxes(tickangle=-25)
-    return apply_chart_theme(fig, height=260)
-
-
-def build_healthcare_access_chart(df: pd.DataFrame):
-    hc = (
-        df.groupby(["AnyHealthcare", "NoDocbcCost"])["Diabetes_binary"]
-        .mean()
-        .reset_index()
-    )
-    hc["Group"] = hc.apply(
-        lambda r: (
-            f"HC={'Yes' if r['AnyHealthcare'] == 1 else 'No'} · Cost={'Yes' if r['NoDocbcCost'] == 1 else 'No'}"
-        ),
-        axis=1,
-    )
-    hc["Rate_pct"] = hc["Diabetes_binary"] * 100
-
-    fig = go.Figure(
-        go.Bar(
-            x=hc["Group"],
-            y=hc["Rate_pct"],
-            marker_color=[DANGER if v > 15 else ACCENT for v in hc["Rate_pct"]],
-        )
-    )
-    fig.update_yaxes(title_text="Diabetes Rate (%)")
-    fig.update_xaxes(tickangle=-15, tickfont_size=9)
     return apply_chart_theme(fig, height=260)
 
 
@@ -666,7 +582,7 @@ def build_lifestyle_score_chart(df: pd.DataFrame):
             marker=dict(
                 color=grp["Rate_pct"],
                 colorscale=[[0, SUCCESS], [1, DANGER]],
-                reversescale=True,
+                reversescale=False,
             ),
         )
     )
@@ -856,26 +772,14 @@ def render_tab_model():
         use_container_width=True,
     )
 
-    spacer()
-    render_section_title("Precision–Recall Trade-off (Conceptual)")
-    open_chart_card()
-    plot(build_precision_recall_chart(build_precision_recall_data()))
-    close_chart_card()
-    render_insight("""
-      <strong> Clinical Threshold Choice:</strong> In a diabetes screening context,
-      lowering the decision threshold raises <em>Recall</em> (catch more true positives) at
-      the cost of <em>Precision</em> (more false alarms). Setting threshold ≈ 0.35–0.40
-      balances sensitivity for early intervention without overwhelming clinical resources.
-    """)
-
 
 def render_tab_business(df: pd.DataFrame):
     render_section_title("Risk Stratification Overview")
-    cb1, cb2, cb3 = st.columns(3)
+    cb1, cb2 = st.columns(2)
 
     with cb1:
         open_chart_card()
-        render_chart_header("💰 Income × Diabetes Rate")
+        render_chart_header("Income × Diabetes Rate")
         plot(build_income_chart(df))
         close_chart_card()
         render_insight("""
@@ -886,7 +790,7 @@ def render_tab_business(df: pd.DataFrame):
 
     with cb2:
         open_chart_card()
-        render_chart_header("🎓 Education × Diabetes Rate")
+        render_chart_header("Education × Diabetes Rate")
         plot(build_education_chart(df))
         close_chart_card()
         render_insight("""
@@ -894,18 +798,6 @@ def render_tab_business(df: pd.DataFrame):
           gradient suggests literacy-friendly health communications and community
           programmes targeting low-education cohorts could reduce rates.
         """)
-
-    with cb3:
-        open_chart_card()
-        render_chart_header("🏥 Healthcare Access Gap")
-        plot(build_healthcare_access_chart(df))
-        close_chart_card()
-        render_insight("""
-          Patients <strong>without healthcare AND facing cost barriers</strong> show
-          the highest undetected prevalence — they are most likely undiagnosed
-          rather than truly healthier. This group is critical for screening initiatives.
-        """)
-
     spacer()
     render_section_title("Engineered Scores vs Diabetes Risk")
     cs1, cs2 = st.columns(2)
@@ -913,7 +805,7 @@ def render_tab_business(df: pd.DataFrame):
     with cs1:
         open_chart_card()
         render_chart_header(
-            "❤️ Cardio Comorbidity Score (0–4)",
+            "Cardio Comorbidity Score (0–4)",
             "Sum of HighBP + HighChol + Stroke + HeartDiseaseorAttack",
         )
         plot(build_cardio_score_scatter(df))
@@ -927,7 +819,7 @@ def render_tab_business(df: pd.DataFrame):
     with cs2:
         open_chart_card()
         render_chart_header(
-            "🥦 Lifestyle Score (0–3)",
+            "Lifestyle Score (0–3)",
             "Sum of PhysActivity + Fruits + Veggies",
         )
         plot(build_lifestyle_score_chart(df))
@@ -940,54 +832,6 @@ def render_tab_business(df: pd.DataFrame):
         """)
 
     spacer()
-    render_section_title("Key Recommendations for Modelling & Deployment")
-    _render_recommendations()
-
-
-def _render_recommendations():
-    recs = [
-        (
-            "🎯",
-            "Prioritise Recall",
-            "In a clinical screening context, missing a diabetic case (false negative) is far costlier than a false alarm. Optimise threshold for Recall ≥ 0.80 and monitor F1 as secondary metric.",
-        ),
-        (
-            "🔧",
-            "Use Engineered Scores",
-            "Cardio_Comorbidity_Score and Lifestyle_Score provide higher signal than the individual binary features they aggregate. Keep them in the final feature set.",
-        ),
-        (
-            "⚖️",
-            "Retain SMOTE-Balanced Training",
-            "The raw 86/14 class split severely degrades minority-class performance. SMOTE-balanced training improves diabetic detection across all model types.",
-        ),
-        (
-            "👥",
-            "Segment by Income & Education",
-            "Low-income / low-education populations carry disproportionate risk and may have systematic data gaps. Consider separate calibration or fairness auditing per demographic subgroup.",
-        ),
-        (
-            "📱",
-            "Business Deployment: Risk Score API",
-            "Serve the trained XGBoost model as a REST API. Integrate with EHR systems to flag high-risk patients (Cardio ≥ 2, Age ≥ 9, GenHlth ≥ 4) for proactive outreach.",
-        ),
-    ]
-
-    r1, r2 = st.columns(2)
-    cols_cycle = [r1, r2, r1, r2, r1]
-
-    for (icon, title, body), col in zip(recs, cols_cycle):
-        col.markdown(
-            f"""
-        <div style='background:#1c2128;border:1px solid #21262d;border-radius:12px;
-                    padding:1rem 1.2rem;margin-bottom:.9rem'>
-          <div style='font-family:Syne,sans-serif;font-size:.85rem;font-weight:700;
-                      color:#e6edf3;margin-bottom:.4rem'>{icon} {title}</div>
-          <div style='font-size:.78rem;color:#8b949e;line-height:1.55'>{body}</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
 
 
 # ─────────────────────────────────────────────

@@ -1,10 +1,7 @@
 from unittest.mock import patch
 
 import pandas as pd
-import pytest
 
-# Adjust this import based on your actual project structure.
-# Assuming dataset.py is inside the diabetes_classifier package.
 from diabetes_classifier.dataset import load_datasets, merge_brfss_datasets, split_data
 
 
