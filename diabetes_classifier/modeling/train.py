@@ -1,3 +1,4 @@
+import json
 import warnings
 from pathlib import Path
 
@@ -26,7 +27,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import OneClassSVM
 from xgboost import XGBClassifier
 
-from diabetes_classifier.config import MODELS_DIR, PROCESSED_DATA_DIR
+from diabetes_classifier.config import MODELS_DIR, PROCESSED_DATA_DIR, REPORTS_DIR
 
 matplotlib.use("Agg")
 
@@ -179,6 +180,27 @@ def load_model_and_params(name: str, dataset: str):
     return None, None
 
 
+def save_results(results: dict, dataset: str):
+    path = MODELS_DIR / dataset / "results.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        for label, df in results.items():
+            f.write(f"\n{'='*50}\n{label}\n{'='*50}\n")
+            f.write(df.to_string())
+            f.write("\n")
+    logger.success(f"Results saved to {path}")
+
+def results_to_json(results_df: pd.DataFrame) -> dict:
+    return {
+        model: {
+            "Accuracy":  round(row["Accuracy"], 4),
+            "Precision": round(row["Precision"], 4),
+            "Recall":    round(row["Recall"], 4),
+            "F1":        round(row["F1"], 4),
+            "ROC-AUC":   round(row["ROC-AUC"], 4),
+        }
+        for model, row in results_df.iterrows()
+    }
 # ──────────────────────────────
 # Fine Tuning
 # ──────────────────────────────
@@ -259,7 +281,7 @@ def fine_tune_XGB(
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "scale_pos_weight": trial.suggest_float("scale_pos_weight", 1, 10),
+            "scale_pos_weight": trial.suggest_float("scale_pos_weight", 1, 4),
         }
         m = XGBClassifier(**p, random_state=42, eval_metric="logloss", n_jobs=-1)
         m.fit(X_train, y_train)
@@ -361,6 +383,9 @@ def get_tuned_models(X_train, y_train, X_val, y_val, dataset: str) -> tuple[dict
     models["OCSVM"], best_params["OCSVM"] = fine_tune_OCSVM(
         X_train, y_train, X_val, y_val, dataset
     )
+    # models["MLP"], best_params["MLP"] = fine_tune_MLP(
+    #     X_train, y_train, X_val, y_val, dataset
+    # )
 
     return models, best_params
 
@@ -374,13 +399,20 @@ def main(output_path: Path = MODELS_DIR):
         logger.info(f"\n{'=' * 50}\nDataset: {dataset.upper()}\n{'=' * 50}")
         X_train, y_train, X_val, y_val = load_data(dataset)
 
-        # train with default hyperparameters
+        # Training with Default Hyper Parameters
         logger.info("-------------------- Default Hyperparameters --------------------")
         default_results = train_and_evaluate(
             get_models(), X_train, y_train, X_val, y_val, label="[Default]"
         )
         logger.success(f"\n{dataset.upper()} Default Results:\n{default_results}")
-
+        
+        # save default result in json for easy access later
+        path = REPORTS_DIR / f"{dataset}_default_metrics.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as file:
+            json.dump(results_to_json(default_results), file, indent=4)
+            
+    
         # 2. PCA then train with default hyper parameters
         logger.info("------------------PCA -----------------------")
         X_train_pca, X_val_pca, _ = apply_pca(X_train, X_val)
@@ -388,8 +420,13 @@ def main(output_path: Path = MODELS_DIR):
             get_models(), X_train_pca, y_train, X_val_pca, y_val, label="[PCA]"
         )
         logger.success(f"\n{dataset.upper()} PCA Results:\n{pca_results}")
+        
+        # save pca result in json for easy access later
+        path = REPORTS_DIR / f"{dataset}_pca_metrics.json"
+        with open(path, "w") as file:
+            json.dump(results_to_json(pca_results), file, indent=4)
 
-        # Train with Tuned Hyper Parameters
+        # Tune the models then Train
         logger.info("---------------Tuning Hyperparameters -------------")
         tuned_models, best_params = get_tuned_models(
             X_train, y_train, X_val, y_val, dataset
@@ -398,8 +435,24 @@ def main(output_path: Path = MODELS_DIR):
             tuned_models, X_train, y_train, X_val, y_val, best_params, label="[Tuned]"
         )
         logger.success(f"\n{dataset.upper()} Tuned Results:\n{tuned_results}")
+        
+        # save tuned result in json for easy access later
+        path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
+        with open(path, "w") as file:
+            json.dump(results_to_json(tuned_results), file, indent=4)
+            
+            
+        # Save results
+        save_results(
+            {
+                "Default": default_results,
+                "PCA":     pca_results,
+                "Tuned":   tuned_results,
+            },
+            dataset,
+        )
 
-        # Results
+        # Summary
         logger.info(f"\n{'=' * 50}\n{dataset.upper()} SUMMARY\n{'=' * 50}")
         logger.info(f"Default:\n{default_results}")
         logger.info(f"PCA:\n{pca_results}")

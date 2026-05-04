@@ -1,0 +1,37 @@
+{
+    "MLP": {
+        "Accuracy": 0.6902,
+        "Precision": 0.3165,
+        "Recall": 0.7692,
+        "F1": 0.4485,
+        "ROC-AUC": 0.7935
+    },
+    "Logistic Regression": {
+        "Accuracy": 0.7117,
+        "Precision": 0.3296,
+        "Recall": 0.7348,
+        "F1": 0.4551,
+        "ROC-AUC": 0.7913
+    },
+    "XGBoost": {
+        "Accuracy": 0.7051,
+        "Precision": 0.3236,
+        "Recall": 0.7338,
+        "F1": 0.4491,
+        "ROC-AUC": 0.7882
+    },
+    "Random Forest": {
+        "Accuracy": 0.7678,
+        "Precision": 0.3499,
+        "Recall": 0.4865,
+        "F1": 0.407,
+        "ROC-AUC": 0.7507
+    },
+    "KNN": {
+        "Accuracy": 0.6948,
+        "Precision": 0.2863,
+        "Recall": 0.5782,
+        "F1": 0.383,
+        "ROC-AUC": 0.7019
+    }
+}
