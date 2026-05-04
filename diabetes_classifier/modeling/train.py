@@ -145,6 +145,17 @@ def load_model_and_params(name: str, dataset: str):
     return None, None
 
 
+def save_results(results: dict, dataset: str):
+    path = MODELS_DIR / dataset / "results.txt"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        for label, df in results.items():
+            f.write(f"\n{'='*50}\n{label}\n{'='*50}\n")
+            f.write(df.to_string())
+            f.write("\n")
+    logger.success(f"Results saved to {path}")
+
+
 # ──────────────────────────────
 # Fine Tuning
 # ──────────────────────────────
@@ -295,9 +306,9 @@ def get_tuned_models(X_train, y_train, X_val, y_val, dataset: str) -> tuple[dict
     models["XGBoost"], best_params["XGBoost"] = fine_tune_XGB(
         X_train, y_train, X_val, y_val, dataset
     )
-    models["MLP"], best_params["MLP"] = fine_tune_MLP(
-        X_train, y_train, X_val, y_val, dataset
-    )
+    # models["MLP"], best_params["MLP"] = fine_tune_MLP(
+    #     X_train, y_train, X_val, y_val, dataset
+    # )
 
     return models, best_params
 
@@ -311,14 +322,14 @@ def main(output_path: Path = MODELS_DIR):
         logger.info(f"\n{'=' * 50}\nDataset: {dataset.upper()}\n{'=' * 50}")
         X_train, y_train, X_val, y_val = load_data(dataset)
 
-        # train with default hyperparameters
+        # Training with Default Hyper Parameters
         logger.info("-------------------- Default Hyperparameters --------------------")
         default_results = train_and_evaluate(
             get_models(), X_train, y_train, X_val, y_val, label="[Default]"
         )
         logger.success(f"\n{dataset.upper()} Default Results:\n{default_results}")
 
-        # 2. PCA then train with default hyper parameters
+        # Perform PCA then Train with Default hyperparams
         logger.info("------------------PCA -----------------------")
         X_train_pca, X_val_pca, _ = apply_pca(X_train, X_val)
         pca_results = train_and_evaluate(
@@ -326,7 +337,7 @@ def main(output_path: Path = MODELS_DIR):
         )
         logger.success(f"\n{dataset.upper()} PCA Results:\n{pca_results}")
 
-        # Train with Tuned Hyper Parameters
+        # Tune the models then Train
         logger.info("---------------Tuning Hyperparameters -------------")
         tuned_models, best_params = get_tuned_models(
             X_train, y_train, X_val, y_val, dataset
@@ -336,7 +347,17 @@ def main(output_path: Path = MODELS_DIR):
         )
         logger.success(f"\n{dataset.upper()} Tuned Results:\n{tuned_results}")
 
-        # Results
+        # Save results
+        save_results(
+            {
+                "Default": default_results,
+                "PCA":     pca_results,
+                "Tuned":   tuned_results,
+            },
+            dataset,
+        )
+
+        # Summary
         logger.info(f"\n{'=' * 50}\n{dataset.upper()} SUMMARY\n{'=' * 50}")
         logger.info(f"Default:\n{default_results}")
         logger.info(f"PCA:\n{pca_results}")
