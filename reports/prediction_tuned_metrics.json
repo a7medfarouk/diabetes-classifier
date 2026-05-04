@@ -1,0 +1,23 @@
+{
+    "XGBoost": {
+        "Accuracy": 0.9488,
+        "Precision": 0.6612,
+        "Recall": 0.8422,
+        "F1": 0.7408,
+        "ROC-AUC": 0.9802
+    },
+    "Random Forest": {
+        "Accuracy": 0.9034,
+        "Precision": 0.471,
+        "Recall": 0.9098,
+        "F1": 0.6207,
+        "ROC-AUC": 0.9772
+    },
+    "Logistic Regression": {
+        "Accuracy": 0.8913,
+        "Precision": 0.4373,
+        "Recall": 0.874,
+        "F1": 0.583,
+        "ROC-AUC": 0.9642
+    }
+}

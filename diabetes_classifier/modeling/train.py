@@ -156,7 +156,17 @@ def save_results(results: dict, dataset: str):
             f.write("\n")
     logger.success(f"Results saved to {path}")
 
-
+def results_to_json(results_df: pd.DataFrame) -> dict:
+    return {
+        model: {
+            "Accuracy":  round(row["Accuracy"], 4),
+            "Precision": round(row["Precision"], 4),
+            "Recall":    round(row["Recall"], 4),
+            "F1":        round(row["F1"], 4),
+            "ROC-AUC":   round(row["ROC-AUC"], 4),
+        }
+        for model, row in results_df.iterrows()
+    }
 # ──────────────────────────────
 # Fine Tuning
 # ──────────────────────────────
@@ -331,17 +341,10 @@ def main(output_path: Path = MODELS_DIR):
         logger.success(f"\n{dataset.upper()} Default Results:\n{default_results}")
         
         # save default result in json for easy access later
-        default_metrics_json = {
-            "Accuracy": default_results["Accuracy"].tolist(),
-            "Precision": default_results["Precision"].tolist(),
-            "Recall": default_results["Recall"].tolist(),
-            "F1-Score": default_results["F1"].tolist(),
-            "ROC-AUC": default_results["ROC-AUC"].tolist(),
-        }
-        path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
+        path = REPORTS_DIR / f"{dataset}_default_metrics.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as file:
-            json.dump(default_metrics_json, file, indent=4)
+            json.dump(results_to_json(default_results), file, indent=4)
             
     
         # 2. PCA then train with default hyper parameters
@@ -353,17 +356,9 @@ def main(output_path: Path = MODELS_DIR):
         logger.success(f"\n{dataset.upper()} PCA Results:\n{pca_results}")
         
         # save pca result in json for easy access later
-        pca_metrics_json = {
-            "Accuracy": pca_results["Accuracy"].tolist(),
-            "Precision": pca_results["Precision"].tolist(),
-            "Recall": pca_results["Recall"].tolist(),
-            "F1-Score": pca_results["F1"].tolist(),
-            "ROC-AUC": pca_results["ROC-AUC"].tolist(),
-        }
-        path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
+        path = REPORTS_DIR / f"{dataset}_pca_metrics.json"
         with open(path, "w") as file:
-            json.dump(pca_metrics_json, file, indent=4)
+            json.dump(results_to_json(pca_results), file, indent=4)
 
         # Tune the models then Train
         logger.info("---------------Tuning Hyperparameters -------------")
@@ -376,17 +371,9 @@ def main(output_path: Path = MODELS_DIR):
         logger.success(f"\n{dataset.upper()} Tuned Results:\n{tuned_results}")
         
         # save tuned result in json for easy access later
-        tuned_metrics_json = {
-            "Accuracy": tuned_results["Accuracy"].tolist(),
-            "Precision": tuned_results["Precision"].tolist(),
-            "Recall": tuned_results["Recall"].tolist(),
-            "F1-Score": tuned_results["F1"].tolist(),
-            "ROC-AUC": tuned_results["ROC-AUC"].tolist(),
-        }
         path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
-        path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as file:
-            json.dump(tuned_metrics_json, file, indent=4)
+            json.dump(results_to_json(tuned_results), file, indent=4)
             
             
         # Save results
