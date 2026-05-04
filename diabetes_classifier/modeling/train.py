@@ -6,6 +6,7 @@ import joblib
 import matplotlib
 import mlflow
 import mlflow.sklearn
+import mlflow.xgboost
 import optuna
 import pandas as pd
 import typer
@@ -30,6 +31,7 @@ from xgboost import XGBClassifier
 from diabetes_classifier.config import MODELS_DIR, PROCESSED_DATA_DIR, REPORTS_DIR
 
 matplotlib.use("Agg")
+mlflow.set_tracking_uri(uri=(Path.cwd() / "mlruns").as_uri())
 
 app = typer.Typer()
 
@@ -84,8 +86,8 @@ def get_models() -> dict:
         "XGBoost": XGBClassifier(
             n_estimators=100, random_state=42, eval_metric="logloss", n_jobs=-1
         ),
-        "KNN": KNeighborsClassifier(n_neighbors=5, n_jobs=-1),
-        "OCSVM": OneClassSVM(kernel="poly", max_iter=50000),
+        "KNN": KNeighborsClassifier(n_neighbors=4, n_jobs=-1),
+        "OCSVM": OneClassSVM(kernel="poly", max_iter=1000),
     }
 
 
@@ -104,6 +106,7 @@ def train_and_evaluate(
     results = {}
     warnings.filterwarnings("ignore", category=UserWarning, module="mlflow.types.utils")
     mlflow.sklearn.autolog()
+    mlflow.xgboost.autolog()
 
     # Initialize the MLflow client
     client = mlflow.MlflowClient()
@@ -154,6 +157,7 @@ def train_and_evaluate(
                     print(f"Best params: {params}")
 
     mlflow.sklearn.autolog(disable=True)
+    mlflow.xgboost.autolog(disable=True)
     return pd.DataFrame(results).T.sort_values("ROC-AUC", ascending=False)
 
 
@@ -185,22 +189,25 @@ def save_results(results: dict, dataset: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         for label, df in results.items():
-            f.write(f"\n{'='*50}\n{label}\n{'='*50}\n")
+            f.write(f"\n{'=' * 50}\n{label}\n{'=' * 50}\n")
             f.write(df.to_string())
             f.write("\n")
     logger.success(f"Results saved to {path}")
 
+
 def results_to_json(results_df: pd.DataFrame) -> dict:
     return {
         model: {
-            "Accuracy":  round(row["Accuracy"], 4),
+            "Accuracy": round(row["Accuracy"], 4),
             "Precision": round(row["Precision"], 4),
-            "Recall":    round(row["Recall"], 4),
-            "F1":        round(row["F1"], 4),
-            "ROC-AUC":   round(row["ROC-AUC"], 4),
+            "Recall": round(row["Recall"], 4),
+            "F1": round(row["F1"], 4),
+            "ROC-AUC": round(row["ROC-AUC"], 4),
         }
         for model, row in results_df.iterrows()
     }
+
+
 # ──────────────────────────────
 # Fine Tuning
 # ──────────────────────────────
@@ -405,14 +412,13 @@ def main(output_path: Path = MODELS_DIR):
             get_models(), X_train, y_train, X_val, y_val, label="[Default]"
         )
         logger.success(f"\n{dataset.upper()} Default Results:\n{default_results}")
-        
+
         # save default result in json for easy access later
         path = REPORTS_DIR / f"{dataset}_default_metrics.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as file:
             json.dump(results_to_json(default_results), file, indent=4)
-            
-    
+
         # 2. PCA then train with default hyper parameters
         logger.info("------------------PCA -----------------------")
         X_train_pca, X_val_pca, _ = apply_pca(X_train, X_val)
@@ -420,7 +426,7 @@ def main(output_path: Path = MODELS_DIR):
             get_models(), X_train_pca, y_train, X_val_pca, y_val, label="[PCA]"
         )
         logger.success(f"\n{dataset.upper()} PCA Results:\n{pca_results}")
-        
+
         # save pca result in json for easy access later
         path = REPORTS_DIR / f"{dataset}_pca_metrics.json"
         with open(path, "w") as file:
@@ -435,19 +441,18 @@ def main(output_path: Path = MODELS_DIR):
             tuned_models, X_train, y_train, X_val, y_val, best_params, label="[Tuned]"
         )
         logger.success(f"\n{dataset.upper()} Tuned Results:\n{tuned_results}")
-        
+
         # save tuned result in json for easy access later
         path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
         with open(path, "w") as file:
             json.dump(results_to_json(tuned_results), file, indent=4)
-            
-            
+
         # Save results
         save_results(
             {
                 "Default": default_results,
-                "PCA":     pca_results,
-                "Tuned":   tuned_results,
+                "PCA": pca_results,
+                "Tuned": tuned_results,
             },
             dataset,
         )
