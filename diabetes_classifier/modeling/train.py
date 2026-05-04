@@ -247,7 +247,7 @@ def fine_tune_XGB(
             "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
             "subsample": trial.suggest_float("subsample", 0.6, 1.0),
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
-            "scale_pos_weight": trial.suggest_float("scale_pos_weight", 1, 10),
+            "scale_pos_weight": trial.suggest_float("scale_pos_weight", 1, 4),
         }
         m = XGBClassifier(**p, random_state=42, eval_metric="logloss", n_jobs=-1)
         m.fit(X_train, y_train)
