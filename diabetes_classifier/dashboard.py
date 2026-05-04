@@ -5,6 +5,9 @@ Requires:  streamlit plotly pandas scikit-learn imbalanced-learn
 Dataset:   data/processed/featured_train_brfss.csv  (relative to this file)
 """
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
@@ -12,11 +15,18 @@ import plotly.graph_objects as go
 import streamlit as st
 from sklearn.ensemble import RandomForestClassifier
 
+from diabetes_classifier.config import (
+    INTERIM_DATA_DIR,
+    PROCESSED_DATA_DIR,
+    RAW_DATA_DIR,
+)
+
 # ─────────────────────────────────────────────
 # CONSTANTS
 # ─────────────────────────────────────────────
-DATA_PATH = "data/processed/featured_train_brfss.csv"
-
+DATA_PATH = PROCESSED_DATA_DIR / "featured_train_brfss.csv"
+INTERIM_DATA_PATH = INTERIM_DATA_DIR / "train_brfss_dataset.csv"
+RAW_DATA_PATH = RAW_DATA_DIR / "diabetes_binary_health_indicators_BRFSS_merged.csv"
 ACCENT = "#58a6ff"
 DANGER = "#f85149"
 SUCCESS = "#3fb950"
@@ -214,25 +224,27 @@ def compute_kpis(df: pd.DataFrame) -> dict:
         "pct_diab": diabetic / total * 100 if total else 0,
         "mean_bmi": df["BMI"].mean(),
         "mean_age": df["Age"].mean(),
-        "mean_cardio": df["Cardio_Comorbidity_Score"].mean(),
     }
 
 
 def get_model_benchmark_data() -> pd.DataFrame:
+    file_path = Path(__file__).parent.parent / "brfss_metrics.json"
+    with open(file_path, "r") as file:
+        metrics = json.load(file)
     return pd.DataFrame(
         {
             "Model": [
                 "Logistic Regression",
-                "Decision Tree",
                 "Random Forest",
-                "Gradient Boosting (XGBoost)",
-                "Neural Network (MLP)",
+                "XGBoost",
+                "KNN",
+                "SVM",
             ],
-            "Accuracy": [0.748, 0.731, 0.784, 0.803, 0.791],
-            "Precision": [0.641, 0.598, 0.692, 0.718, 0.704],
-            "Recall": [0.713, 0.744, 0.738, 0.761, 0.752],
-            "F1 Score": [0.675, 0.663, 0.714, 0.739, 0.727],
-            "ROC-AUC": [0.821, 0.779, 0.857, 0.879, 0.863],
+            "Accuracy": metrics["Accuracy"],
+            "Precision": metrics["Precision"],
+            "Recall": metrics["Recall"],
+            "F1 Score": metrics["F1-Score"],
+            "ROC-AUC": metrics["ROC-AUC"],
         }
     )
 
@@ -340,7 +352,7 @@ def apply_chart_theme(fig, height: int = 340):
 # ─────────────────────────────────────────────
 # CHART BUILDERS  (each builds and returns a fig)
 # ─────────────────────────────────────────────
-def build_class_distribution_chart(df: pd.DataFrame, pct_diab: float):
+def build_class_distribution_chart(df: pd.DataFrame):
     counts = df["Diabetes_label"].value_counts().reset_index()
     counts.columns = ["Label", "Count"]
 
@@ -349,18 +361,11 @@ def build_class_distribution_chart(df: pd.DataFrame, pct_diab: float):
             labels=counts["Label"],
             values=counts["Count"],
             hole=0.62,
-            marker=dict(colors=[DANGER, SUCCESS]),
+            marker=dict(colors=[SUCCESS, DANGER]),
             textinfo="percent",
             textfont_size=12,
+            textfont_color="white",
         )
-    )
-    fig.add_annotation(
-        text=f"{pct_diab:.1f}%<br><span style='font-size:10px'>diabetic</span>",
-        x=0.5,
-        y=0.5,
-        showarrow=False,
-        font=dict(size=16, color="#e6edf3", family="Syne"),
-        align="center",
     )
     return apply_chart_theme(fig, height=290)
 
@@ -537,9 +542,8 @@ def build_model_radar_chart(df_models: pd.DataFrame, metrics: list):
         )
     fig.update_layout(
         polar=dict(
-            radialaxis=dict(
-                visible=True, range=[0.6, 0.95], gridcolor=GRID_COL, color="#484f58"
-            ),
+            # Removed the range parameter entirely
+            radialaxis=dict(visible=True, gridcolor=GRID_COL, color="#484f58"),
             angularaxis=dict(gridcolor=GRID_COL),
             bgcolor=CARD_BG,
         )
@@ -674,19 +678,19 @@ def build_lifestyle_score_chart(df: pd.DataFrame):
 # ─────────────────────────────────────────────
 # TAB RENDERERS
 # ─────────────────────────────────────────────
-def render_tab_eda(df: pd.DataFrame, pct_diab: float):
+def render_tab_eda(df: pd.DataFrame, df_interim: pd.DataFrame):
     c_dist, c_bmi = st.columns([1, 1.6])
 
     with c_dist:
         open_chart_card()
         render_chart_header(
-            "Class Distribution", "Target variable balance after filtering"
+            "Class Distribution", "Target variable balance after Splitting and Cleaning"
         )
-        plot(build_class_distribution_chart(df, pct_diab))
+        plot(build_class_distribution_chart(df_interim))
         close_chart_card()
         render_insight("""
           <strong>Class Imbalance:</strong> The dataset shows a significant skew —
-          ~86% non-diabetic vs ~14% diabetic. SMOTE was applied during training to
+          ~83.6% non-diabetic vs ~16.4% diabetic. SMOTE was applied during training to
           balance the classes and prevent model bias towards the majority class.
         """)
 
@@ -736,32 +740,6 @@ def render_tab_eda(df: pd.DataFrame, pct_diab: float):
           the "Poor" tier contains ~40%+ diabetic patients. This self-reported feature captures
           composite health status and should rank highly in feature importance.
         """)
-
-    spacer()
-    render_section_title("Health Days Binning Analysis")
-    c_m, c_p = st.columns(2)
-
-    for col_w, feat_mod, feat_sev, title in [
-        (
-            c_m,
-            "MentHlth_binned_Moderate",
-            "MentHlth_binned_Severe",
-            "Mental Health Days × Diabetes",
-        ),
-        (
-            c_p,
-            "PhysHlth_binned_Moderate",
-            "PhysHlth_binned_Severe",
-            "Physical Health Days × Diabetes",
-        ),
-    ]:
-        if feat_mod in df.columns and feat_sev in df.columns:
-            with col_w:
-                open_chart_card()
-                render_chart_header(title)
-                plot(build_health_days_chart(df, feat_mod, feat_sev))
-                close_chart_card()
-
     spacer()
     render_section_title("Cardio Comorbidity Score")
 
@@ -862,7 +840,7 @@ def render_tab_model():
         plot(build_roc_auc_chart(df_models))
         close_chart_card()
         render_insight("""
-          <strong>🏆 Recommendation:</strong> <em>Gradient Boosting (XGBoost)</em> leads
+          <strong> Recommendation:</strong> <em>Gradient Boosting (XGBoost)</em> leads
           across all metrics. Its ensemble nature handles the imbalanced, mixed-type
           feature space better than linear or single-tree methods.
           Use <em>Recall</em> as primary optimisation target for clinical deployment
@@ -884,7 +862,7 @@ def render_tab_model():
     plot(build_precision_recall_chart(build_precision_recall_data()))
     close_chart_card()
     render_insight("""
-      <strong>⚕️ Clinical Threshold Choice:</strong> In a diabetes screening context,
+      <strong> Clinical Threshold Choice:</strong> In a diabetes screening context,
       lowering the decision threshold raises <em>Recall</em> (catch more true positives) at
       the cost of <em>Precision</em> (more false alarms). Setting threshold ≈ 0.35–0.40
       balances sensitivity for early intervention without overwhelming clinical resources.
@@ -1026,18 +1004,17 @@ def render_page_header():
 
 
 def render_kpi_row(kpis: dict):
-    k1, k2, k3, k4, k5 = st.columns(5)
+    k1, k2, k3, k4 = st.columns(4)
     for col, label, value, delta in [
         (k1, "Total Records", f"{kpis['total']:,}", None),
         (k2, "Diabetic Cases", f"{kpis['diabetic']:,}", None),
-        (k3, "Prevalence Rate", f"{kpis['pct_diab']:.1f}%", "vs ~9% US avg"),
-        (k4, "Avg BMI (scaled)", f"{kpis['mean_bmi']:.3f}", None),
-        (k5, "Avg Cardio Score", f"{kpis['mean_cardio']:.2f}", "0-4 scale"),
+        (k3, "Prevalence Rate", f"{kpis['pct_diab']:.1f}%", None),
+        (k4, "Avg BMI", f"{kpis['mean_bmi']:.3f}", None),
     ]:
         render_kpi(col, label, value, delta)
 
 
-def render_tabs(df: pd.DataFrame, kpis: dict):
+def render_tabs(df: pd.DataFrame, df_interim: pd.DataFrame):
     tab_eda, tab_feat, tab_model, tab_biz = st.tabs(
         [
             " EDA Findings ",
@@ -1048,7 +1025,7 @@ def render_tabs(df: pd.DataFrame, kpis: dict):
     )
 
     with tab_eda:
-        render_tab_eda(df, kpis["pct_diab"])
+        render_tab_eda(df, df_interim)
     with tab_feat:
         render_tab_features(df)
     with tab_model:
@@ -1065,12 +1042,13 @@ def main():
     inject_global_styles()
 
     df = add_derived_columns(load_data(DATA_PATH))
-    kpis = compute_kpis(df)
-
+    df_raw = load_data(RAW_DATA_PATH)
+    kpis = compute_kpis(df_raw)
+    df_interim = add_derived_columns(load_data(INTERIM_DATA_PATH))
     render_page_header()
     render_kpi_row(kpis)
     spacer()
-    render_tabs(df, kpis)
+    render_tabs(df, df_interim)
 
 
 if __name__ == "__main__":

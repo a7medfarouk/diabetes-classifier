@@ -1,3 +1,4 @@
+import json
 import warnings
 from pathlib import Path
 
@@ -23,7 +24,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from xgboost import XGBClassifier
 
-from diabetes_classifier.config import MODELS_DIR, PROCESSED_DATA_DIR
+from diabetes_classifier.config import MODELS_DIR, PROCESSED_DATA_DIR, REPORTS_DIR
 
 app = typer.Typer()
 
@@ -328,14 +329,41 @@ def main(output_path: Path = MODELS_DIR):
             get_models(), X_train, y_train, X_val, y_val, label="[Default]"
         )
         logger.success(f"\n{dataset.upper()} Default Results:\n{default_results}")
-
-        # Perform PCA then Train with Default hyperparams
+        
+        # save default result in json for easy access later
+        default_metrics_json = {
+            "Accuracy": default_results["Accuracy"].tolist(),
+            "Precision": default_results["Precision"].tolist(),
+            "Recall": default_results["Recall"].tolist(),
+            "F1-Score": default_results["F1"].tolist(),
+            "ROC-AUC": default_results["ROC-AUC"].tolist(),
+        }
+        path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as file:
+            json.dump(default_metrics_json, file, indent=4)
+            
+    
+        # 2. PCA then train with default hyper parameters
         logger.info("------------------PCA -----------------------")
         X_train_pca, X_val_pca, _ = apply_pca(X_train, X_val)
         pca_results = train_and_evaluate(
             get_models(), X_train_pca, y_train, X_val_pca, y_val, label="[PCA]"
         )
         logger.success(f"\n{dataset.upper()} PCA Results:\n{pca_results}")
+        
+        # save pca result in json for easy access later
+        pca_metrics_json = {
+            "Accuracy": pca_results["Accuracy"].tolist(),
+            "Precision": pca_results["Precision"].tolist(),
+            "Recall": pca_results["Recall"].tolist(),
+            "F1-Score": pca_results["F1"].tolist(),
+            "ROC-AUC": pca_results["ROC-AUC"].tolist(),
+        }
+        path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as file:
+            json.dump(pca_metrics_json, file, indent=4)
 
         # Tune the models then Train
         logger.info("---------------Tuning Hyperparameters -------------")
@@ -346,7 +374,21 @@ def main(output_path: Path = MODELS_DIR):
             tuned_models, X_train, y_train, X_val, y_val, best_params, label="[Tuned]"
         )
         logger.success(f"\n{dataset.upper()} Tuned Results:\n{tuned_results}")
-
+        
+        # save tuned result in json for easy access later
+        tuned_metrics_json = {
+            "Accuracy": tuned_results["Accuracy"].tolist(),
+            "Precision": tuned_results["Precision"].tolist(),
+            "Recall": tuned_results["Recall"].tolist(),
+            "F1-Score": tuned_results["F1"].tolist(),
+            "ROC-AUC": tuned_results["ROC-AUC"].tolist(),
+        }
+        path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as file:
+            json.dump(tuned_metrics_json, file, indent=4)
+            
+            
         # Save results
         save_results(
             {
