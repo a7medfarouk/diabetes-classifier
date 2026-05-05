@@ -8,7 +8,6 @@ Dataset:   data/processed/featured_train_brfss.csv  (relative to this file)
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
