@@ -47,11 +47,3 @@ jobs:
 
       - name: Run tests
         run: poetry run make test
-
-      # Optional pipeline steps
-      - name: Run data pipeline
-        run: |
-          poetry run make clean_data
-          poetry run make features
-          poetry run make train
-          poetry run make classify
