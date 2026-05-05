@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build:
@@ -19,9 +19,7 @@ jobs:
         with:
           python-version: "3.10"
 
-      # -------------------------------
       # Cache Poetry virtualenv
-      # -------------------------------
       - name: Cache dependencies
         uses: actions/cache@v4
         with:
@@ -39,7 +37,7 @@ jobs:
           poetry config virtualenvs.in-project true
 
       - name: Install dependencies
-        run: make requirements
+        run: poetry install
 
       - name: Lint code
         run: poetry run make lint
@@ -48,16 +46,12 @@ jobs:
         run: poetry run ruff format --check diabetes_classifier
 
       - name: Run tests
-        run: |
-          pip install pytest
-          make test
+        run: poetry run make test
 
-      # -------------------------------
-      # Optional pipeline (safe parts)
-      # -------------------------------
+      # Optional pipeline steps
       - name: Run data pipeline
         run: |
-          make clean_data
-          make features
-          make train
-          make classify
+          poetry run make clean_data
+          poetry run make features
+          poetry run make train
+          poetry run make classify
