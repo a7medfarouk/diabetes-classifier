@@ -1,4 +1,3 @@
-from pathlib import Path
 import json
 
 import pandas as pd
@@ -6,22 +5,26 @@ import typer
 from loguru import logger
 from sklearn.metrics import (
     accuracy_score,
+    classification_report,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
     roc_auc_score,
-    classification_report,
 )
 from xgboost import XGBClassifier
 
-from diabetes_classifier.config import MODELS_DIR, PROCESSED_DATA_DIR, REPORTS_DIR
-from diabetes_classifier.modeling.train import DATASETS, load_model_and_params, results_to_json
+from diabetes_classifier.config import PROCESSED_DATA_DIR, REPORTS_DIR
+from diabetes_classifier.modeling.train import (
+    DATASETS,
+    load_model_and_params,
+    results_to_json,
+)
 
 app = typer.Typer()
 
 # Best model per dataset
 BEST_MODELS = {
-    "brfss":      ("XGBoost", False),
+    "brfss": ("XGBoost", False),
     "prediction": ("XGBoost", True),
 }
 
@@ -31,7 +34,7 @@ BEST_MODELS = {
 # ──────────────────────────────
 def load_test_data(dataset: str) -> tuple:
     logger.info(f"Loading {dataset} test set...")
-    test   = pd.read_csv(PROCESSED_DATA_DIR / f"featured_test_{dataset}.csv")
+    test = pd.read_csv(PROCESSED_DATA_DIR / f"featured_test_{dataset}.csv")
     target = DATASETS[dataset]
     X_test = test.drop(columns=[target])
     y_test = test[target]
@@ -43,16 +46,16 @@ def load_test_data(dataset: str) -> tuple:
 # Evaluate
 # ──────────────────────────────
 def evaluate(model, X_test, y_test, name: str, params: dict = {}) -> pd.DataFrame:
-    y_pred      = model.predict(X_test)
+    y_pred = model.predict(X_test)
     y_pred_prob = model.predict_proba(X_test)[:, 1]
 
     results = {
         name: {
-            "Accuracy":  accuracy_score(y_test, y_pred),
+            "Accuracy": accuracy_score(y_test, y_pred),
             "Precision": precision_score(y_test, y_pred),
-            "Recall":    recall_score(y_test, y_pred),
-            "F1":        f1_score(y_test, y_pred),
-            "ROC-AUC":   roc_auc_score(y_test, y_pred_prob),
+            "Recall": recall_score(y_test, y_pred),
+            "F1": f1_score(y_test, y_pred),
+            "ROC-AUC": roc_auc_score(y_test, y_pred_prob),
         }
     }
 
@@ -70,7 +73,7 @@ def evaluate(model, X_test, y_test, name: str, params: dict = {}) -> pd.DataFram
 @app.command()
 def main():
     for dataset, (model_name, use_tuned) in BEST_MODELS.items():
-        logger.info(f"\n{'='*50}\nDataset: {dataset.upper()}\n{'='*50}")
+        logger.info(f"\n{'=' * 50}\nDataset: {dataset.upper()}\n{'=' * 50}")
 
         X_test, y_test = load_test_data(dataset)
 
@@ -88,10 +91,12 @@ def main():
             target = DATASETS[dataset]
             X_train = train.drop(columns=[target])
             y_train = train[target]
-            model  = XGBClassifier(n_estimators=100, random_state=42, eval_metric="logloss", n_jobs=-1)
+            model = XGBClassifier(
+                n_estimators=100, random_state=42, eval_metric="logloss", n_jobs=-1
+            )
             model.fit(X_train, y_train)
             params = {}
-            label  = f"{model_name} [Default]"
+            label = f"{model_name} [Default]"
 
         results = evaluate(model, X_test, y_test, label, params)
         logger.success(f"\n{dataset.upper()} Test Results:\n{results}")

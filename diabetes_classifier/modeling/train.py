@@ -3,6 +3,10 @@ import warnings
 from pathlib import Path
 
 import joblib
+import matplotlib
+import mlflow
+import mlflow.sklearn
+import mlflow.xgboost
 import optuna
 import pandas as pd
 import typer
@@ -21,10 +25,13 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neural_network import MLPClassifier
+from sklearn.svm import OneClassSVM
 from xgboost import XGBClassifier
 
 from diabetes_classifier.config import MODELS_DIR, PROCESSED_DATA_DIR, REPORTS_DIR
+
+matplotlib.use("Agg")
+mlflow.set_tracking_uri(uri=(Path.cwd() / "mlruns").as_uri())
 
 app = typer.Typer()
 
@@ -79,10 +86,8 @@ def get_models() -> dict:
         "XGBoost": XGBClassifier(
             n_estimators=100, random_state=42, eval_metric="logloss", n_jobs=-1
         ),
-        "KNN": KNeighborsClassifier(n_neighbors=5, n_jobs=-1),
-        "MLP": MLPClassifier(
-            hidden_layer_sizes=(100,), max_iter=50000, random_state=42
-        ),
+        "KNN": KNeighborsClassifier(n_neighbors=4, n_jobs=-1),
+        "OCSVM": OneClassSVM(kernel="poly", max_iter=1000),
     }
 
 
@@ -99,27 +104,60 @@ def train_and_evaluate(
     label: str = "",
 ) -> pd.DataFrame:
     results = {}
+    warnings.filterwarnings("ignore", category=UserWarning, module="mlflow.types.utils")
+    mlflow.sklearn.autolog()
+    mlflow.xgboost.autolog()
 
-    for name, model in models.items():
-        logger.info(f"Training {name} {label}...")
-        model.fit(X_train, y_train)
+    # Initialize the MLflow client
+    client = mlflow.MlflowClient()
 
-        y_pred = model.predict(X_val)
-        y_pred_prob = model.predict_proba(X_val)[:, 1]
+    # Check if the experiment already exists
+    exp = client.get_experiment_by_name("classifier-comparison")
 
-        results[name] = {
-            "Accuracy": accuracy_score(y_val, y_pred),
-            "Precision": precision_score(y_val, y_pred),
-            "Recall": recall_score(y_val, y_pred),
-            "F1": f1_score(y_val, y_pred),
-            "ROC-AUC": roc_auc_score(y_val, y_pred_prob),
-        }
+    if exp is None:
+        # Create a new experiment with specified name and tags
+        experiment_id = client.create_experiment(
+            name="classifier-comparison",
+            tags={"topic": "classification-lab", "version": "v1"},
+        )
+    else:
+        experiment_id = exp.experiment_id
 
-        print(f"\n{name} {label}:")
-        print(classification_report(y_val, y_pred))
-        if (params := best_params.get(name, None)) is not None:
-            print(f"Best params: {params}")
+    with mlflow.start_run(
+        experiment_id=experiment_id, run_name="model-comparison"
+    ) as parent_run:
+        for name, model in models.items():
+            with mlflow.start_run(
+                experiment_id=experiment_id,
+                run_name=name,
+                parent_run_id=parent_run.info.run_id,
+                nested=True,
+            ):
+                logger.info(f"Training {name} {label}...")
+                model.fit(X_train, y_train)
 
+                y_pred = model.predict(X_val)
+                if hasattr(model, "predict_proba"):
+                    y_pred_prob = model.predict_proba(X_val)[:, 1]
+                else:
+                    # For OCSVM
+                    y_pred_prob = model.score_samples(X_val)
+
+                results[name] = {
+                    "Accuracy": accuracy_score(y_val, y_pred),
+                    "Precision": precision_score(y_val, y_pred),
+                    "Recall": recall_score(y_val, y_pred),
+                    "F1": f1_score(y_val, y_pred),
+                    "ROC-AUC": roc_auc_score(y_val, y_pred_prob),
+                }
+
+                print(f"\n{name} {label}:")
+                print(classification_report(y_val, y_pred))
+                if (params := best_params.get(name, None)) is not None:
+                    print(f"Best params: {params}")
+
+    mlflow.sklearn.autolog(disable=True)
+    mlflow.xgboost.autolog(disable=True)
     return pd.DataFrame(results).T.sort_values("ROC-AUC", ascending=False)
 
 
@@ -151,22 +189,25 @@ def save_results(results: dict, dataset: str):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
         for label, df in results.items():
-            f.write(f"\n{'='*50}\n{label}\n{'='*50}\n")
+            f.write(f"\n{'=' * 50}\n{label}\n{'=' * 50}\n")
             f.write(df.to_string())
             f.write("\n")
     logger.success(f"Results saved to {path}")
 
+
 def results_to_json(results_df: pd.DataFrame) -> dict:
     return {
         model: {
-            "Accuracy":  round(row["Accuracy"], 4),
+            "Accuracy": round(row["Accuracy"], 4),
             "Precision": round(row["Precision"], 4),
-            "Recall":    round(row["Recall"], 4),
-            "F1":        round(row["F1"], 4),
-            "ROC-AUC":   round(row["ROC-AUC"], 4),
+            "Recall": round(row["Recall"], 4),
+            "F1": round(row["F1"], 4),
+            "ROC-AUC": round(row["ROC-AUC"], 4),
         }
         for model, row in results_df.iterrows()
     }
+
+
 # ──────────────────────────────
 # Fine Tuning
 # ──────────────────────────────
@@ -265,36 +306,69 @@ def fine_tune_XGB(
     return best_model, best_params
 
 
-def fine_tune_MLP(
+def fine_tune_OCSVM(
     X_train, y_train, X_val, y_val, dataset: str
-) -> tuple[MLPClassifier, dict]:
-    model, params = load_model_and_params("MLP", dataset)
+) -> tuple[OneClassSVM, dict]:
+    model, params = load_model_and_params("OCSVM", dataset)
     if model is not None:
         return model, params
 
     def objective(trial: optuna.Trial) -> float:
-        x = trial.suggest_int("x", 50, 100)
-        y = trial.suggest_int("y", 50, 100)
-        p = {
-            "hidden_layer_sizes": (x, y),
-            "alpha":              trial.suggest_float("alpha", 1e-4, 0.1, log=True),
-            "learning_rate":      trial.suggest_categorical("learning_rate", ["constant", "adaptive"]),
-            "early_stopping":     True,
-            "n_iter_no_change":   10,
-            "validation_fraction": 0.1,
+
+        kernel = trial.suggest_categorical("kernel", ["linear", "poly", "rbf"])
+        nu = trial.suggest_float("nu", 1e-3, 0.5, log=True)
+
+        params = {
+            "kernel": kernel,
+            "nu": nu,
+            "cache_size": 2000,
+            "max_iter": 50000,
         }
-        m = MLPClassifier(**p, max_iter=50000, random_state=42)
-        m.fit(X_train, y_train)
-        return float(average_precision_score(y_val, m.predict_proba(X_val)[:, 1]))
+
+        if kernel == "poly":
+            params["degree"] = trial.suggest_int("degree", 1, 3)
+            params["gamma"] = trial.suggest_float("gamma", 1e-6, 1.0, log=True)
+        elif kernel == "rbf":
+            params["gamma"] = trial.suggest_float("gamma", 1e-6, 1.0, log=True)
+
+        model = OneClassSVM(**params)
+
+        # Catch convergence warnings and penalize/prune the trial
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=ConvergenceWarning)
+            try:
+                model.fit(X_train)
+            except ConvergenceWarning:
+                # If it hits max_iter without converging, tell Optuna this is a bad path
+                raise optuna.exceptions.TrialPruned()
+            except Exception:
+                # Catch potential math/value errors from weird hyperparameter combos
+                raise optuna.exceptions.TrialPruned()
+
+        # PR-AUC score metric
+        val_scores = -model.score_samples(X_val)
+        pr_auc = average_precision_score(y_val, val_scores)
+        return float(pr_auc)
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-    study = optuna.create_study(direction="maximize")
-    study.optimize(objective, n_trials=20, n_jobs=1, show_progress_bar=True)
+    storage = optuna.storages.InMemoryStorage()
+
+    study = optuna.create_study(direction="maximize", storage=storage)
+
+    study.optimize(
+        objective,
+        n_trials=500,
+        n_jobs=-1,
+        show_progress_bar=True,
+    )
+
     best_params = study.best_params
-    best_params["hidden_layer_sizes"] = (best_params.pop("x"), best_params.pop("y"))
-    best_model = MLPClassifier(**best_params, max_iter=50000, random_state=42)
-    best_model.fit(X_train, y_train)
-    save_model_and_params(best_model, best_params, "MLP", dataset)
+
+    # Train the final model with the optimal parameters
+    best_model = OneClassSVM(**best_params, cache_size=2000, max_iter=-1)
+    best_model.fit(X_train)
+
+    save_model_and_params(best_model, best_params, "One-class SVM", dataset)
     return best_model, best_params
 
 
@@ -313,9 +387,12 @@ def get_tuned_models(X_train, y_train, X_val, y_val, dataset: str) -> tuple[dict
     models["XGBoost"], best_params["XGBoost"] = fine_tune_XGB(
         X_train, y_train, X_val, y_val, dataset
     )
-    models["MLP"], best_params["MLP"] = fine_tune_MLP(
+    models["OCSVM"], best_params["OCSVM"] = fine_tune_OCSVM(
         X_train, y_train, X_val, y_val, dataset
     )
+    # models["MLP"], best_params["MLP"] = fine_tune_MLP(
+    #     X_train, y_train, X_val, y_val, dataset
+    # )
 
     return models, best_params
 
@@ -335,14 +412,13 @@ def main(output_path: Path = MODELS_DIR):
             get_models(), X_train, y_train, X_val, y_val, label="[Default]"
         )
         logger.success(f"\n{dataset.upper()} Default Results:\n{default_results}")
-        
+
         # save default result in json for easy access later
         path = REPORTS_DIR / f"{dataset}_default_metrics.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as file:
             json.dump(results_to_json(default_results), file, indent=4)
-            
-    
+
         # 2. PCA then train with default hyper parameters
         logger.info("------------------PCA -----------------------")
         X_train_pca, X_val_pca, _ = apply_pca(X_train, X_val)
@@ -350,7 +426,7 @@ def main(output_path: Path = MODELS_DIR):
             get_models(), X_train_pca, y_train, X_val_pca, y_val, label="[PCA]"
         )
         logger.success(f"\n{dataset.upper()} PCA Results:\n{pca_results}")
-        
+
         # save pca result in json for easy access later
         path = REPORTS_DIR / f"{dataset}_pca_metrics.json"
         with open(path, "w") as file:
@@ -365,19 +441,18 @@ def main(output_path: Path = MODELS_DIR):
             tuned_models, X_train, y_train, X_val, y_val, best_params, label="[Tuned]"
         )
         logger.success(f"\n{dataset.upper()} Tuned Results:\n{tuned_results}")
-        
+
         # save tuned result in json for easy access later
         path = REPORTS_DIR / f"{dataset}_tuned_metrics.json"
         with open(path, "w") as file:
             json.dump(results_to_json(tuned_results), file, indent=4)
-            
-            
+
         # Save results
         save_results(
             {
                 "Default": default_results,
-                "PCA":     pca_results,
-                "Tuned":   tuned_results,
+                "PCA": pca_results,
+                "Tuned": tuned_results,
             },
             dataset,
         )
