@@ -878,9 +878,6 @@ def render_tabs(df: pd.DataFrame, df_interim: pd.DataFrame):
         render_tab_business(df)
 
 
-# ─────────────────────────────────────────────
-# ENTRY POINT
-# ─────────────────────────────────────────────
 def main():
     configure_page()
     inject_global_styles()

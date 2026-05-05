@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-# Adjust this import based on your project structure
 from diabetes_classifier.validation import (
     run_all_validations,
     validate_merge_columns,
@@ -56,6 +55,7 @@ def test_validate_merge_columns_failure():
     # 2 & 3. ACT & ASSERT: We expect it to raise an error
     with pytest.raises(AssertionError):
         validate_merge_columns(df1, df2)
+
 
 @patch("diabetes_classifier.validation.run_validation")
 @patch("diabetes_classifier.validation.gx.get_context")
