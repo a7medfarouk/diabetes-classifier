@@ -9,6 +9,7 @@ import mlflow.sklearn
 import mlflow.xgboost
 import optuna
 import pandas as pd
+from sklearn.neural_network import MLPClassifier
 import typer
 from loguru import logger
 from sklearn.decomposition import PCA
@@ -88,6 +89,9 @@ def get_models() -> dict:
         ),
         "KNN": KNeighborsClassifier(n_neighbors=4, n_jobs=-1),
         "OCSVM": OneClassSVM(kernel="poly", max_iter=1000),
+        "MLP": MLPClassifier(
+            hidden_layer_sizes=(100,), max_iter=50000, random_state=42
+        ),
     }
 
 
