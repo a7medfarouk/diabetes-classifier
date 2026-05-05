@@ -6,18 +6,25 @@
         "F1": 0.7408,
         "ROC-AUC": 0.9802
     },
+    "MLP": {
+        "Accuracy": 0.9104,
+        "Precision": 0.4916,
+        "Recall": 0.9082,
+        "F1": 0.6379,
+        "ROC-AUC": 0.9774
+    },
     "Random Forest": {
-        "Accuracy": 0.9017,
-        "Precision": 0.4664,
+        "Accuracy": 0.9018,
+        "Precision": 0.4668,
         "Recall": 0.9098,
-        "F1": 0.6167,
-        "ROC-AUC": 0.977
+        "F1": 0.617,
+        "ROC-AUC": 0.9771
     },
     "Logistic Regression": {
-        "Accuracy": 0.8914,
-        "Precision": 0.4375,
+        "Accuracy": 0.8912,
+        "Precision": 0.4372,
         "Recall": 0.874,
-        "F1": 0.5831,
+        "F1": 0.5828,
         "ROC-AUC": 0.9642
     }
 }

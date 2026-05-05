@@ -7,11 +7,18 @@
         "ROC-AUC": 0.8006
     },
     "Random Forest": {
-        "Accuracy": 0.7198,
-        "Precision": 0.336,
-        "Recall": 0.7282,
-        "F1": 0.4598,
-        "ROC-AUC": 0.7977
+        "Accuracy": 0.7197,
+        "Precision": 0.3357,
+        "Recall": 0.7269,
+        "F1": 0.4593,
+        "ROC-AUC": 0.7976
+    },
+    "MLP": {
+        "Accuracy": 0.6874,
+        "Precision": 0.3167,
+        "Recall": 0.7849,
+        "F1": 0.4513,
+        "ROC-AUC": 0.7975
     },
     "Logistic Regression": {
         "Accuracy": 0.7162,

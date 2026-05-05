@@ -60,7 +60,7 @@ def apply_pca(X_train, X_val, variance_threshold: float = 0.95):
     X_train_pca = pca.fit_transform(X_train)
     X_val_pca = pca.transform(X_val)
     logger.info(
-        f"PCA: {X_train.shape[1]} features → {pca.n_components_} components ({variance_threshold * 100:.0f}% variance retained)"
+        f"PCA: {X_train.shape[1]} features -> {pca.n_components_} components ({variance_threshold * 100:.0f}% variance retained)"
     )
     return X_train_pca, X_val_pca, pca
 
@@ -277,18 +277,14 @@ def fine_tune_MLP(
         y = trial.suggest_int("y", 50, 100)
         p = {
             "hidden_layer_sizes": (x, y),
-            "alpha": trial.suggest_float("alpha", 1e-4, 0.1, log=True),
-            "learning_rate": trial.suggest_categorical(
-                "learning_rate", ["constant", "adaptive"]
-            ),
+            "alpha":              trial.suggest_float("alpha", 1e-4, 0.1, log=True),
+            "learning_rate":      trial.suggest_categorical("learning_rate", ["constant", "adaptive"]),
+            "early_stopping":     True,
+            "n_iter_no_change":   10,
+            "validation_fraction": 0.1,
         }
         m = MLPClassifier(**p, max_iter=50000, random_state=42)
-        with warnings.catch_warnings():
-            warnings.filterwarnings("error", category=ConvergenceWarning)
-            try:
-                m.fit(X_train, y_train)
-            except (ConvergenceWarning, Exception):
-                raise optuna.exceptions.TrialPruned()
+        m.fit(X_train, y_train)
         return float(average_precision_score(y_val, m.predict_proba(X_val)[:, 1]))
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
@@ -317,9 +313,9 @@ def get_tuned_models(X_train, y_train, X_val, y_val, dataset: str) -> tuple[dict
     models["XGBoost"], best_params["XGBoost"] = fine_tune_XGB(
         X_train, y_train, X_val, y_val, dataset
     )
-    # models["MLP"], best_params["MLP"] = fine_tune_MLP(
-    #     X_train, y_train, X_val, y_val, dataset
-    # )
+    models["MLP"], best_params["MLP"] = fine_tune_MLP(
+        X_train, y_train, X_val, y_val, dataset
+    )
 
     return models, best_params
 
